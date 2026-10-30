@@ -37,19 +37,19 @@ jobs:
             go mod download
           fi
 
-      - name: Build Binaries
+            - name: Build Binaries
         run: |
           # Build macOS (Darwin) architectures
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-amd64 main.go
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-arm64 main.go
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-amd64 ./path/to/source
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-arm64 ./path/to/source
 
           # Build Linux architectures
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-amd64 main.go
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-arm64 main.go
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-amd64 ./path/to/source
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-arm64 ./path/to/source
 
           # Build Windows architectures
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-amd64.exe main.go
-          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-arm64.exe main.go
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-amd64.exe ./path/to/source
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-arm64.exe ./path/to/source
 
       - name: Commit and Push Binaries
         run: |
