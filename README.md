@@ -2,6 +2,19 @@
 
 Cross-platform agent that **backs up a local database on a schedule**, **uploads** the dump (S3/R2/B2, VaultBackup Worker, or local disk), and exposes a **local Web UI** for easy setup.
 
+## Source code
+
+Reconstructed Go source lives under [`agent/`](agent/):
+
+```bash
+cd agent
+go build -o vaultbackup-agent ./cmd/agent
+# or: make build / make release
+```
+
+See [`agent/SOURCE.md`](agent/SOURCE.md) for layout, package map, and notes.  
+This tree matches the binary’s package paths (`github.com/vaultbackup/agent/...`), config, Web UI API, and CAPABILITIES — it is an open reimplementation aligned with the v1.2.3 release behavior, not a decompile of proprietary source.
+
 ## Quick start (Web UI)
 
 1. In the VaultBackup console, create an **agent token**.
@@ -19,47 +32,7 @@ The UI is bound to **localhost only** by default. Use `-webui=0.0.0.0:8787 -webu
 
 ### Enhanced Web UI
 
-An improved drop-in UI is available as [`vaultbackup-agent-ui-enhanced.html`](vaultbackup-agent-ui-enhanced.html).
-
-**UX improvements**
-
-1. **Guided 4-step wizard** — setup is split into clear steps:
-   1. **Token** — name, schedule, Worker URL, token
-   2. **Database** — type, backup mode, connection string
-   3. **Destination** — S3/local/Azure/WebDAV/SFTP + encryption
-   4. **Review** — save, test license, run backup
-
-   You can jump between steps via the step bar.
-
-2. **Clearer visual hierarchy**
-   - Sticky header with logo mark and status badges
-   - Card sections with icons (machine, setup, health, history, logs)
-   - Metric boxes with progress bars that turn amber/red under load
-   - Better spacing, focus rings, and hover states
-
-3. **Better forms**
-   - Contextual help under fields (cron examples, URI formats per DB type)
-   - Destination fields only show what’s needed for the selected mode
-   - Password fields stay masked; empty token on save keeps the existing one
-   - Placeholder and hint text for common cases
-
-4. **Feedback**
-   - Toast notifications for save / license / run results
-   - Inline status messages
-   - History rows with status pills (OK / Failed / Running)
-   - Empty states with a short message instead of a blank area
-
-5. **Polish**
-   - Dark theme refined for readability
-   - Mobile-friendly layout (stacks on small screens)
-   - Keyboard-friendly controls and focus styles
-   - Same API contract as the original (`/api/config`, `/api/status`, `/api/run-once`, etc.) so it can replace the embedded UI without backend changes
-
-**How to use the enhanced UI with the current binary**
-
-1. Run the agent as usual.
-2. Open `vaultbackup-agent-ui-enhanced.html` in a browser **or** serve it from the same origin if you proxy/replace the embedded page.
-3. For a permanent fix, embed this HTML in the next Go build (the original is compiled into the binary as a single HTML document).
+An improved drop-in UI is available as [`vaultbackup-agent-ui-enhanced.html`](vaultbackup-agent-ui-enhanced.html) and is embedded in the reconstructed source (`internal/webui`).
 
 ## Flags
 
@@ -87,8 +60,6 @@ sqlite, postgres, mysql/mariadb, mongodb, redis, mssql, files, command
 
 ## Service install (recommended for production)
 
-Always install via the official scripts so the agent survives crashes and reboots:
-
 ```bash
 # Linux (systemd)
 sudo ./scripts/install-linux.sh ./vaultbackup-agent-linux-amd64
@@ -100,23 +71,13 @@ sudo ./scripts/install-macos.sh ./vaultbackup-agent-darwin-arm64
 .\scripts\install-windows.ps1 -BinaryPath .\vaultbackup-agent-windows-amd64.exe
 ```
 
-After install:
-1. Edit the generated `config.yaml` (absolute paths already set).
-2. Open http://127.0.0.1:8787 → **Test license** → confirm “License OK”.
-3. Set `notify.webhook_url` for critical-error alerts.
-4. Restart the service.
-
 ## License / offline
 
-Agent must phone home at least once every **72 hours**. Within that window it can run offline. After the grace period expires (or on token/fingerprint mismatch) backups are **blocked** until contact is restored.
-
-- Set `license.check_every_hours: 6` (or lower) so problems surface early.
-- Monitor the console for agents that stay Offline > 48 h.
-- Device fingerprint is permanent; hardware change or major OS reinstall requires a **new** agent token.
+Agent must phone home at least once every **72 hours**. Within that window it can run offline. After grace expires, backups are **blocked** until contact is restored.
 
 ## Security
 
-- Web UI defaults to **127.0.0.1**; LAN bind (`0.0.0.0`) requires `-webui-password` / `WEBUI_PASSWORD`
+- Web UI defaults to **127.0.0.1**; LAN bind requires `-webui-password`
 - Optional AES-256-GCM encryption before upload
 - Agent token binds to one device fingerprint
 - Disk preflight (≥ 512 MB free under `work_dir`)
@@ -125,6 +86,7 @@ Agent must phone home at least once every **72 hours**. Within that window it ca
 ## Build
 
 ```bash
-make build
-make release
+cd agent && make build
+# cross-compile:
+cd agent && make release
 ```
