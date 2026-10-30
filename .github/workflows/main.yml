@@ -17,13 +17,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Explicitly overrides the repository's read-only default token restrictions
     permissions:
       contents: write
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
-        # Implicitly uses the default GITHUB_TOKEN automatically, no token assignment required here
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -69,6 +69,5 @@ jobs:
             echo "No compiled executable changes detected. Skipping automation step."
           else
             git commit -m "chore(build): update deployment binaries [skip ci]"
-            # The actions/checkout step saves the authentication in the git config natively, so a clean git push works
             git push origin HEAD:${{ github.ref_name }}
           fi
