@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vaultbackup/agent/internal/config"
+	"github.com/vaultbackup/agent/internal/license"
 )
 
 func putAzure(d config.Destination, localPath string) (string, error) {
@@ -87,9 +88,10 @@ func putSFTP(d config.Destination, localPath string) (string, error) {
 }
 
 func putVault(cfg config.Config, localPath string) (string, error) {
-	base := strings.TrimRight(cfg.License.ServerURL, "/")
+	// Server URL is hardcoded in the license package.
+	base := strings.TrimRight(license.ServerURL(), "/")
 	if base == "" {
-		return "", fmt.Errorf("license.server_url required for vaultbackup destination")
+		return "", fmt.Errorf("license server URL not configured")
 	}
 	url := base + "/api/agent/upload"
 	f, err := os.Open(localPath)
