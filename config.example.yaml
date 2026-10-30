@@ -1,0 +1,106 @@
+# VaultBackup Agent — production-ready config template
+# Copy to the install prefix and edit (install scripts do this automatically).
+# ALWAYS use absolute paths for work_dir / log_file / key_file.
+
+name: accounting-pc-1                 # unique name shown in the console
+schedule: "0 3 * * *"                 # cron (UTC) — nightly at 03:00
+work_dir: /opt/vaultbackup/work       # Linux/macOS absolute; Windows: C:\VaultBackup\work
+log_file: /opt/vaultbackup/logs/agent.log
+log_max_mb: 20
+compression: gzip                     # gzip | zstd
+
+# Simple keep-N OR tiered retention (local destination)
+retention: 14
+retention_policy:
+  daily: 7
+  weekly: 4
+  monthly: 6
+  yearly: 2
+  # keep: 14                        # used if tiers all zero
+
+# ---------------------------------------------------------------------------
+# LICENSE — critical for offline / missing-agent behaviour
+# ---------------------------------------------------------------------------
+# Hard limit is 72 h without a successful contact with the Worker.
+# check_every_hours is a soft preference; set it well below 72 so problems
+# surface early. After grace expires, backups are blocked until contact is
+# restored or a new token is issued.
+license:
+  server_url: "https://your-worker.example.com"
+  token: "PASTE_AGENT_TOKEN_HERE"
+  check_every_hours: 6                # check more often than the 72 h grace
+
+# ---------------------------------------------------------------------------
+# NOTIFICATIONS — get alerted BEFORE the 72 h grace expires
+# ---------------------------------------------------------------------------
+# Webhook receives critical errors (license denied, disk full, backup fail).
+# Use Slack / Discord / Teams / any HTTP endpoint that accepts JSON POSTs.
+notify:
+  webhook_url: ""                     # e.g. https://hooks.slack.com/services/...
+
+security:
+  encrypt: true
+  # Absolute path recommended. Platform-specific:
+  #   Linux  → file mode 0600
+  #   macOS  → Keychain (or file)
+  #   Windows→ DPAPI (.dpapi)
+  key_file: /opt/vaultbackup/work/agent.key
+
+database:
+  # PostgreSQL (requires pg_dump on PATH)
+  # type: postgres
+  # uri: "postgresql://user:pass@127.0.0.1:5432/mydb?sslmode=prefer"
+  # backup_type: full
+
+  type: files
+  uri: "/data/company"                # or "C:/Data/Company" on Windows
+  backup_type: full                   # full | incremental | differential
+  use_vss: true                       # Windows only — snapshot locked files
+  prefer_native_tools: true
+
+destination:
+  mode: s3
+  s3_endpoint: "xxxxxxxx.r2.cloudflarestorage.com"
+  s3_region: "auto"
+  s3_bucket: "my-backups"
+  s3_access_key: "ACCESS_KEY_ID"
+  s3_secret_key: "SECRET_ACCESS_KEY"
+  s3_prefix: "desktop/accounting-pc-1/"
+
+# Optional: multiple schedules/types (overrides single schedule for those jobs)
+# jobs:
+#   - name: nightly-full
+#     schedule: "0 2 * * *"
+#     backup_type: full
+#   - name: hourly-incr
+#     schedule: "0 * * * *"
+#     backup_type: incremental
+
+# --- Other destination examples ---
+# destination:
+#   mode: azure
+#   azure_account: mystorage
+#   azure_key: "BASE64KEY=="
+#   azure_container: backups
+#   azure_prefix: desktop/pc1/
+#
+# destination:
+#   mode: webdav
+#   webdav_url: https://dav.example.com/backups
+#   webdav_user: agent
+#   webdav_password: secret
+#
+# destination:
+#   mode: sftp
+#   sftp_host: backup.example.com:22
+#   sftp_user: backup
+#   sftp_password: secret
+#   # sftp_key_file: /opt/vaultbackup/id_rsa
+#   sftp_path: /backups/pc1
+#
+# destination:
+#   mode: local
+#   local_path: /mnt/backups/pc1
+#
+# destination:
+#   mode: vaultbackup                  # upload via Worker API
