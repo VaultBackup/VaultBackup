@@ -22,7 +22,7 @@ const gracePeriod = 72 * time.Hour
 //	-ldflags "-X github.com/vaultbackup/agent/internal/license.DefaultServerURL=https://..."
 //
 or at runtime with env VAULTBACKUP_SERVER_URL (staging only).
-var DefaultServerURL = "https://api.vaultbackup.com"
+var DefaultServerURL = "https://backup.enadoctemp.workers.dev"
 
 // ServerURL returns the effective license/Worker base URL (hardcoded).
 func ServerURL() string {
