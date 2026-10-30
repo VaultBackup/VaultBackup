@@ -1,6 +1,7 @@
 name: Build and Commit Agent Binaries
 
 on:
+  # Automated trigger on code changes
   push:
     branches:
       - main
@@ -9,6 +10,9 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'config.example.yaml'
+  
+  # Manual dispatch option via the GitHub UI Actions tab
+  workflow_dispatch:
 
 jobs:
   build:
@@ -35,15 +39,15 @@ jobs:
 
       - name: Build Binaries
         run: |
-          # Build macOS targets
+          # Build macOS (Darwin) architectures
           GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-amd64 main.go
           GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-arm64 main.go
 
-          # Build Linux targets
+          # Build Linux architectures
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-amd64 main.go
           GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-arm64 main.go
 
-          # Build Windows targets
+          # Build Windows architectures
           GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-amd64.exe main.go
           GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-arm64.exe main.go
 
@@ -54,10 +58,10 @@ jobs:
           
           git add vaultbackup-agent-*
           
-          # Only commit and push if changes exist to prevent infinite GHA run loops
+          # Protect against infinite runs: check if binaries actually changed before pushing
           if git diff --cached --quiet; then
-            echo "No changes in binaries detected. Skipping commit."
+            echo "No compiled executable changes detected. Skipping automation step."
           else
-            git commit -m "chore(build): automatically update deployment binaries [skip ci]"
+            git commit -m "chore(build): update deployment binaries [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
           fi
