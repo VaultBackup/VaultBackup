@@ -86,7 +86,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	if !ok {
 		msg := "backup blocked: " + reason
 		log.Print(msg)
-		notify.Failure(cfg, "License blocked",", reason)
+		notify.Failure(cfg, "License blocked", reason)
 		return fmt.Errorf("%s", msg)
 	}
 
