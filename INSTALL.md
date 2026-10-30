@@ -2,16 +2,19 @@
 
 **Public page:** https://backup.enadoctemp.workers.dev/install
 
-The agent source repository is **private**. Binaries are still available to everyone through the Worker download endpoints below (Worker proxies GitHub with a token, or serves files from R2).
+For **SMBs and accounting firms**: back up office databases to **your own** disk or S3-compatible storage (B2, Wasabi, R2, AWS).
 
-License server URL is **built into the binary** (`https://backup.enadoctemp.workers.dev`). You only need an **agent token** from the dashboard.
+## Office databases vs cloud databases
 
----
+| Scenario | Use |
+|----------|-----|
+| SQL Server / MySQL on office PC or LAN | **Desktop agent** (this guide) |
+| Tiny public cloud DB | Web console serverless backup (size limits) |
 
 ## Download
 
-| Platform | Download |
-|----------|----------|
+| Platform | URL |
+|----------|-----|
 | Windows x64 | https://backup.enadoctemp.workers.dev/download/windows-amd64 |
 | Windows ARM64 | https://backup.enadoctemp.workers.dev/download/windows-arm64 |
 | macOS Apple Silicon | https://backup.enadoctemp.workers.dev/download/darwin-arm64 |
@@ -19,69 +22,43 @@ License server URL is **built into the binary** (`https://backup.enadoctemp.work
 | Linux x64 | https://backup.enadoctemp.workers.dev/download/linux-amd64 |
 | Linux ARM64 | https://backup.enadoctemp.workers.dev/download/linux-arm64 |
 
-Or open the full guide: https://backup.enadoctemp.workers.dev/install
-
----
-
 ## Create a token
 
-1. Open https://backup.enadoctemp.workers.dev/ and sign in.
-2. Under **Desktop Agents**, click **Create token**.
-3. Copy the token (shown only once).
+1. Sign in at https://backup.enadoctemp.workers.dev/
+2. **Desktop Agents** → **Create token** → copy once
 
----
+## Windows service (recommended)
 
-## Run
+1. Put the exe in `C:\VaultBackup\vaultbackup-agent.exe`
+2. Run the UI once to paste token + set database + storage
+3. Register auto-start:
 
-### Linux / macOS
-
-```bash
-curl -fsSL -o vaultbackup-agent https://backup.enadoctemp.workers.dev/download/linux-amd64
-chmod +x vaultbackup-agent
-./vaultbackup-agent --webui 127.0.0.1:8787
-```
-
-Open http://127.0.0.1:8787 → paste the agent token → database + destination → **Save** → **Test license** → **Run backup now**.
-
-### Windows
-
-Download https://backup.enadoctemp.workers.dev/download/windows-amd64 then:
-
+**Task Scheduler:**
 ```text
-vaultbackup-agent-windows-amd64.exe --webui 127.0.0.1:8787
+schtasks /Create /TN "VaultBackup Agent" /SC ONSTART /RU SYSTEM /RL HIGHEST /TR "C:\VaultBackup\vaultbackup-agent.exe --config C:\VaultBackup\config.yaml --webui 127.0.0.1:8787"
 ```
 
----
-
-## Worker setup (operators)
-
-Because the GitHub repo is private, the Worker must be able to fetch binaries:
-
-```bash
-# Classic PAT or fine-grained token with Contents: Read on VaultBackup/VaultBackup
-wrangler secret put GH_TOKEN
-```
-
-Optional vars: `GH_OWNER`, `GH_REPO`, `GH_BRANCH` (defaults: VaultBackup / VaultBackup / main).
-
-**Alternative:** upload each binary to R2 at `agents/vaultbackup-agent-linux-amd64` (etc.). R2 is tried first; no `GH_TOKEN` needed if all six files are present.
-
----
-
-## Flags
-
+**Or NSSM:**
 ```text
---config path/to/config.yaml
---webui 127.0.0.1:8787
---webui-password SECRET
---once
---no-webui
+nssm install VaultBackupAgent "C:\VaultBackup\vaultbackup-agent.exe"
+nssm set VaultBackupAgent AppParameters "--config C:\VaultBackup\config.yaml --webui 127.0.0.1:8787"
+nssm start VaultBackupAgent
 ```
 
----
+## Own storage presets
 
-## Verify
+In the agent UI choose **S3 / R2 / B2 / Wasabi**, then a preset:
 
-- Dashboard → **Desktop Agents** shows **Live** within a few seconds.
-- Local UI license check succeeds.
-- Run a test backup from the agent UI.
+- **Backblaze B2** — endpoint `s3.<region>.backblazeb2.com`, Key ID + Application key
+- **Wasabi** — `s3.wasabisys.com` or regional host
+- **Cloudflare R2** — `<accountid>.r2.cloudflarestorage.com`, region `auto`
+- **AWS S3** — empty endpoint + region, IAM keys
+- **Local disk** — destination mode Local
+
+## Alerts
+
+When `RESEND_API_KEY` and `MAIL_FROM` are set on the Worker, critical agent failures email the account owner (rate-limited to about once per hour per agent).
+
+## License server
+
+Built into the binary: `https://backup.enadoctemp.workers.dev`
