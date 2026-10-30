@@ -1,73 +1,13 @@
-name: Build and Commit Agent Binaries
+# Deprecated: use build-agents.yml (builds from agent/ and commits binaries).
+# Kept as a no-op so old triggers do not fail the repo.
+name: Legacy (disabled)
 
 on:
-  # Automated trigger on code changes
-  push:
-    branches:
-      - main
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'config.example.yaml'
-  
-  # Manual dispatch option via the GitHub UI Actions tab
   workflow_dispatch:
 
 jobs:
-  build:
+  noop:
     runs-on: ubuntu-latest
-    # Explicitly overrides the repository's read-only default token restrictions
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-
-      - name: Install Dependencies
-        run: |
-          if [ -f go.mod ]; then
-            go mod download
-          fi
-
-      - name: Build Binaries
-        run: |
-          # Fallback: Initialize a temporary module if go.mod is completely missing
-          if [ ! -f go.mod ]; then
-            echo "go.mod not found. Initializing safe baseline module environment..."
-            go mod init vaultbackup-agent || true
-            go mod tidy || true
-          fi
-          
-          # Build macOS (Darwin) architectures using recursive subfolder scanning (./...)
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-amd64 ./...
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-arm64 ./...
-
-          # Build Linux architectures using recursive subfolder scanning (./...)
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-amd64 ./...
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-arm64 ./...
-
-          # Build Windows architectures using recursive subfolder scanning (./...)
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-amd64.exe ./...
-          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-arm64.exe ./...
-
-      - name: Commit and Push Binaries
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@://github.com"
-          
-          git add vaultbackup-agent-*
-          
-          # Protect against infinite runs: check if binaries actually changed before pushing
-          if git diff --cached --quiet; then
-            echo "No compiled executable changes detected. Skipping automation step."
-          else
-            git commit -m "chore(build): update deployment binaries [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
+      - name: Disabled
+        run: echo "Use Build Agent Binaries workflow instead."

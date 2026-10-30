@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +15,22 @@ import (
 )
 
 const gracePeriod = 72 * time.Hour
+
+// DefaultServerURL is the hardcoded VaultBackup Worker / license server.
+// Override at build time with:
+//
+//	-ldflags "-X github.com/vaultbackup/agent/internal/license.DefaultServerURL=https://..."
+//
+or at runtime with env VAULTBACKUP_SERVER_URL (staging only).
+var DefaultServerURL = "https://api.vaultbackup.com"
+
+// ServerURL returns the effective license/Worker base URL (hardcoded).
+func ServerURL() string {
+	if v := strings.TrimSpace(os.Getenv("VAULTBACKUP_SERVER_URL")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return strings.TrimRight(DefaultServerURL, "/")
+}
 
 var (
 	mu          sync.RWMutex
@@ -35,9 +53,9 @@ type Status struct {
 
 // Check contacts the Worker and updates offline grace.
 func Check(cfg config.Config) (Status, error) {
-	base := stringsTrim(cfg.License.ServerURL)
-	if base == "" || cfg.License.Token == "" {
-		return Status{Reason: "missing server_url or token"}, fmt.Errorf("license not configured")
+	base := ServerURL()
+	if cfg.License.Token == "" {
+		return Status{Reason: "missing token"}, fmt.Errorf("license not configured: token required")
 	}
 	body := map[string]any{
 		"token":       cfg.License.Token,
@@ -150,10 +168,7 @@ func SyncConfig(cfg config.Config) error {
 }
 
 func post(cfg config.Config, path string, payload any) error {
-	base := stringsTrim(cfg.License.ServerURL)
-	if base == "" {
-		return nil
-	}
+	base := ServerURL()
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -184,13 +199,6 @@ func offlineStatus() Status {
 		reason = fmt.Sprintf("license offline grace until %s", lastOK.Add(gracePeriod).Format(time.RFC3339))
 	}
 	return Status{OK: ok, Allowed: ok, Reason: reason, Checked: lastOK}
-}
-
-func stringsTrim(s string) string {
-	for len(s) > 0 && (s[len(s)-1] == '/' || s[len(s)-1] == ' ') {
-		s = s[:len(s)-1]
-	}
-	return s
 }
 
 func firstNonEmpty(a, b string) string {

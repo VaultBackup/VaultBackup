@@ -1,0 +1,68 @@
+name: Build Agent Binaries
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/build-agents.yml'
+  workflow_dispatch:
+
+# Avoid overlapping builds; [skip ci] commits from this workflow won't re-trigger
+concurrency:
+  group: build-agents
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build all platforms
+        working-directory: agent
+        run: |
+          set -euo pipefail
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.3")
+          LDFLAGS="-s -w -X main.version=${VERSION}"
+
+          echo "Building version ${VERSION}..."
+
+          GOOS=linux   GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-linux-amd64       ./cmd/agent
+          GOOS=linux   GOARCH=arm64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-linux-arm64       ./cmd/agent
+          GOOS=darwin  GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-darwin-amd64      ./cmd/agent
+          GOOS=darwin  GOARCH=arm64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-darwin-arm64      ./cmd/agent
+          GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-windows-amd64.exe ./cmd/agent
+          GOOS=windows GOARCH=arm64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-windows-arm64.exe ./cmd/agent
+
+          ls -la ../vaultbackup-agent-*
+
+      - name: Commit and push binaries
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            vaultbackup-agent-linux-amd64 \
+            vaultbackup-agent-linux-arm64 \
+            vaultbackup-agent-darwin-amd64 \
+            vaultbackup-agent-darwin-arm64 \
+            vaultbackup-agent-windows-amd64.exe \
+            vaultbackup-agent-windows-arm64.exe
+
+          if git diff --cached --quiet; then
+            echo "No binary changes; skipping commit."
+            exit 0
+          fi
+
+          git commit -m "chore(build): update agent binaries [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
