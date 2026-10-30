@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>VaultBackup Agent</title>
+<style>
+:root {
+  --bg: #0b1220;
+  --card: #111827;
+  --border: #1f2937;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --brand: #22c55e;
+  --brand-dim: #16a34a;
+  --danger: #f87171;
+  --amber: #fbbf24;
+  --surface: #0f172a;
+  --input: #020617;
+  --focus: #22c55e88;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+  min-height: 100vh;
+}
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(8px);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.logo-mark {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  display: grid; place-items: center;
+  font-weight: 800; font-size: 14px; color: #052e16;
+  flex-shrink: 0;
+}
+h1 { font-size: 1.05rem; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+.sub { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.badge {
+  font-size: 11px;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.badge.ok { color: #6ee7b7; border-color: #065f46; background: #064e3b55; }
+.badge.warn { color: #fcd34d; border-color: #92400e; background: #78350f44; }
+.badge.bad { color: #fca5a5; border-color: #7f1d1d; background: #7f1d1d44; }
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+  display: grid;
+  gap: 1.1rem;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+.card-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  flex: 1;
+}
+.icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: #1e293b;
+  display: grid; place-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.grid { display: grid; gap: 0.75rem; }
+@media (min-width: 720px) {
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+}
+label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 0.28rem;
+  font-weight: 500;
+}
+.hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 0.28rem;
+  opacity: 0.9;
+}
+input, select, textarea {
+  width: 100%;
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+textarea {
+  min-height: 72px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.55rem 0.95rem;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s, transform 0.1s;
+}
+button:active { transform: scale(0.98); }
+.btn { background: var(--brand-dim); color: #fff; }
+.btn:hover { background: #15803d; }
+.btn.sec {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid var(--border);
+}
+.btn.sec:hover { background: #334155; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.metric { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; }
+.muted { color: var(--muted); font-size: 12px; }
+.err { color: var(--danger); font-size: 12px; }
+.ok { color: #6ee7b7; font-size: 12px; }
+.bar {
+  height: 7px;
+  background: #1e293b;
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.bar > i {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: 99px;
+  transition: width 0.4s ease, background 0.3s;
+}
+.bar.warn > i { background: var(--amber); }
+.bar.crit > i { background: var(--danger); }
+pre {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  font-size: 11px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Wizard steps */
+.wizard-nav {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+.step-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.step-btn:hover { border-color: #334155; color: var(--text); }
+.step-btn.active {
+  background: #064e3b44;
+  border-color: #065f46;
+  color: #6ee7b7;
+}
+.step-btn.done {
+  border-color: #065f46;
+  color: #6ee7b7;
+}
+.step-num {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #1e293b;
+  display: grid; place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+.step-btn.active .step-num { background: var(--brand); color: #052e16; }
+.step-btn.done .step-num { background: #065f46; color: #6ee7b7; }
+.step-panel { display: none; }
+.step-panel.active { display: block; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.dest-fields { display: none; }
+.dest-fields.show { display: grid; }
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.check-row input { width: auto; margin: 0; }
+
+/* History pills */
+.hist-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.hist-table th {
+  color: var(--muted);
+  text-align: left;
+  font-weight: 500;
+  padding: 0.35rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+.hist-table td {
+  padding: 0.45rem 0.4rem;
+  border-bottom: 1px solid #1a2332;
+  vertical-align: top;
+}
+.pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.pill.ok { background: #064e3b55; color: #6ee7b7; }
+.pill.fail { background: #7f1d1d44; color: #fca5a5; }
+.pill.run { background: #1e3a5f55; color: #93c5fd; }
+
+/* Toast */
+.toast-wrap {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 340px;
+  pointer-events: none;
+}
+.toast {
+  background: #1e293b;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-size: 13px;
+  box-shadow: 0 8px 30px #00000066;
+  animation: toastIn 0.25s ease;
+  pointer-events: auto;
+}
+.toast.ok { border-color: #065f46; }
+.toast.err { border-color: #7f1d1d; }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.empty {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  color: var(--muted);
+  font-size: 13px;
+}
+.review-grid {
+  display: grid;
+  gap: 0.6rem;
+  font-size: 13px;
+}
+.review-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #1a2332;
+}
+.review-row:last-child { border-bottom: 0; }
+.review-k { color: var(--muted); }
+.review-v { word-break: break-all; }
+
+@media (max-width: 640px) {
+  header { flex-wrap: wrap; }
+  .review-row { grid-template-columns: 1fr; gap: 0.15rem; }
+  .wizard-actions { flex-direction: column-reverse; }
+  .wizard-actions .row { width: 100%; justify-content: stretch; }
+  .wizard-actions button { flex: 1; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-mark">VB</div>
+    <div>
+      <h1>VaultBackup Agent</h1>
+      <div class="sub" id="sub">Local setup · status reports to your Worker</div>
+    </div>
+  </div>
+  <div class="row">
+    <span class="badge" id="setup-badge">…</span>
+    <span class="badge" id="lic-badge">License</span>
+  </div>
+</header>
+
+<main>
+  <!-- Machine metrics -->
+  <div class="card">
+    <div class="card-head">
+      <div class="icon">🖥</div>
+      <h2>This machine</h2>
+    </div>
+    <div class="grid grid-3">
+      <div>
+        <div class="muted">Host</div>
+        <div class="metric" id="m-host">—</div>
+      </div>
+      <div>
+        <div class="muted">CPU</div>
+        <div class="metric" id="m-cpu">—</div>
+        <div class="bar" id="bar-cpu-wrap"><i id="bar-cpu" style="width:0%"></i></div>
+      </div>
+      <div>
+        <div class="muted">RAM</div>
+        <div class="metric" id="m-ram">—</div>
+        <div class="bar" id="bar-ram-wrap"><i id="bar-ram" style="width:0%"></i></div>
+      </div>
+    </div>
+    <p class="muted" style="margin:.75rem 0 0" id="m-os"></p>
+  </div>
+
+  <!-- Setup wizard -->
+  <div class="card">
+    <div class="card-head">
+      <div class="icon">⚙</div>
+      <h2>Setup</h2>
+    </div>
+
+    <div class="wizard-nav" id="wizard-nav">
+      <button type="button" class="step-btn active" data-step="1">
+        <span class="step-num">1</span> Token
+      </button>
+      <button type="button" class="step-btn" data-step="2">
+        <span class="step-num">2</span> Database
+      </button>
+      <button type="button" class="step-btn" data-step="3">
+        <span class="step-num">3</span> Destination
+      </button>
+      <button type="button" class="step-btn" data-step="4">
+        <span class="step-num">4</span> Review
+      </button>
+    </div>
+
+    <!-- Step 1: Token -->
+    <div class="step-panel active" data-step="1">
+      <div class="grid grid-2">
+        <div>
+          <label>Agent name</label>
+          <input id="name" placeholder="accounting-pc-1" autocomplete="off"/>
+          <div class="hint">Shown in the VaultBackup console</div>
+        </div>
+        <div>
+          <label>Schedule (cron)</label>
+          <input id="schedule" placeholder="0 3 * * *"/>
+          <div class="hint">e.g. 0 3 * * * = daily at 03:00 · 0 */6 * * * = every 6 hours</div>
+        </div>
+        <div>
+          <label>VaultBackup Worker URL</label>
+          <input id="server_url" placeholder="https://your-worker.example.com"/>
+          <div class="hint">Base URL of your Worker instance</div>
+        </div>
+        <div>
+          <label>Agent token</label>
+          <input id="token" type="password" placeholder="paste token once" autocomplete="off"/>
+          <div class="hint">From console → Create token. Leave blank on later saves to keep existing.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Database -->
+    <div class="step-panel" data-step="2">
+      <div class="grid grid-2">
+        <div>
+          <label>Database type</label>
+          <select id="db_type">
+            <option value="postgres">PostgreSQL</option>
+            <option value="mysql">MySQL</option>
+            <option value="mariadb">MariaDB</option>
+            <option value="sqlite">SQLite</option>
+            <option value="mongodb">MongoDB</option>
+            <option value="redis">Redis</option>
+            <option value="mssql">SQL Server</option>
+            <option value="files">Files / folder</option>
+            <option value="command">Custom command</option>
+          </select>
+        </div>
+        <div>
+          <label>Backup mode</label>
+          <select id="backup_type">
+            <option value="full">Full</option>
+            <option value="incremental">Incremental</option>
+            <option value="differential">Differential</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1">
+          <label>Connection string or path</label>
+          <textarea id="db_uri" placeholder="postgresql://user:pass@127.0.0.1:5432/db"></textarea>
+          <div class="hint" id="uri-hint">PostgreSQL: postgresql://user:pass@host:5432/dbname</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Destination -->
+    <div class="step-panel" data-step="3">
+      <div class="grid grid-2">
+        <div>
+          <label>Destination</label>
+          <select id="dest_mode">
+            <option value="s3">S3 / R2 / B2 / MinIO / Wasabi</option>
+            <option value="local">Local folder</option>
+            <option value="vaultbackup">VaultBackup Worker upload</option>
+            <option value="azure">Azure Blob</option>
+            <option value="webdav">WebDAV</option>
+            <option value="sftp">SFTP</option>
+          </select>
+        </div>
+        <div>
+          <label>Retention (keep N local copies)</label>
+          <input id="retention" type="number" min="1" value="14"/>
+        </div>
+      </div>
+
+      <div id="s3-fields" class="dest-fields grid grid-2 show" style="margin-top:.75rem">
+        <div><label>S3 endpoint host</label><input id="s3_endpoint" placeholder="xxx.r2.cloudflarestorage.com"/></div>
+        <div><label>Region</label><input id="s3_region" placeholder="auto"/></div>
+        <div><label>Bucket</label><input id="s3_bucket"/></div>
+        <div><label>Prefix</label><input id="s3_prefix" placeholder="desktop/pc1/"/></div>
+        <div><label>Access key</label><input id="s3_access_key"/></div>
+        <div><label>Secret key</label><input id="s3_secret_key" type="password"/></div>
+      </div>
+      <div id="local-fields" class="dest-fields grid" style="margin-top:.75rem">
+        <div><label>Local output directory</label><input id="local_dir" placeholder="./data/out"/></div>
+      </div>
+      <div id="azure-fields" class="dest-fields grid grid-2" style="margin-top:.75rem">
+        <div><label>Storage account</label><input id="azure_account" placeholder="mystorageacct"/></div>
+        <div><label>Container</label><input id="azure_container" placeholder="backups"/></div>
+        <div><label>Account key</label><input id="azure_key" type="password"/></div>
+        <div><label>Prefix</label><input id="azure_prefix" placeholder="desktop/pc1/"/></div>
+        <div style="grid-column:1/-1"><label>Custom endpoint (optional)</label><input id="azure_endpoint" placeholder="https://mystorageacct.blob.core.windows.net"/></div>
+      </div>
+      <div id="webdav-fields" class="dest-fields grid grid-2" style="margin-top:.75rem">
+        <div style="grid-column:1/-1"><label>WebDAV base URL</label><input id="webdav_url" placeholder="https://dav.example.com/backups"/></div>
+        <div><label>Username</label><input id="webdav_user"/></div>
+        <div><label>Password</label><input id="webdav_password" type="password"/></div>
+      </div>
+      <div id="sftp-fields" class="dest-fields grid grid-2" style="margin-top:.75rem">
+        <div><label>Host (host:port)</label><input id="sftp_host" placeholder="backup.example.com:22"/></div>
+        <div><label>Username</label><input id="sftp_user"/></div>
+        <div><label>Password</label><input id="sftp_password" type="password"/></div>
+        <div><label>Private key file path</label><input id="sftp_key_file" placeholder="/path/to/id_rsa"/></div>
+        <div style="grid-column:1/-1"><label>Remote directory</label><input id="sftp_path" placeholder="/backups/pc1"/></div>
+      </div>
+
+      <div class="row" style="margin-top:1rem">
+        <label class="check-row">
+          <input type="checkbox" id="encrypt" checked/>
+          Encrypt backups (AES-256-GCM)
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 4: Review -->
+    <div class="step-panel" data-step="4">
+      <div class="review-grid" id="review-summary">
+        <div class="empty">Fill earlier steps, then return here to review.</div>
+      </div>
+      <div class="row" style="margin-top:1.1rem; gap:.6rem">
+        <button class="btn" id="btn-save" type="button">Save configuration</button>
+        <button class="btn sec" id="btn-license" type="button">Test license</button>
+        <button class="btn sec" id="btn-run" type="button">Run backup now</button>
+      </div>
+      <p id="msg" class="muted" style="margin:.65rem 0 0"></p>
+    </div>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn sec" id="btn-prev">← Back</button>
+      <div class="row">
+        <button type="button" class="btn" id="btn-next">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DB health -->
+  <div class="card">
+    <div class="card-head">
+      <div class="icon">💚</div>
+      <h2>Database health</h2>
+    </div>
+    <div class="grid grid-3">
+      <div><div class="muted">Status</div><div class="metric" id="db-status">—</div></div>
+      <div><div class="muted">Latency</div><div class="metric" id="db-lat">—</div></div>
+      <div><div class="muted">Detail</div><div class="metric" style="font-size:.9rem" id="db-detail">—</div></div>
+    </div>
+    <p class="muted" style="margin:.5rem 0 0" id="db-tools"></p>
+  </div>
+
+  <!-- History -->
+  <div class="card">
+    <div class="card-head">
+      <div class="icon">📋</div>
+      <h2>Backup history</h2>
+      <button class="btn sec" id="btn-hist" type="button" style="margin-left:auto">Refresh</button>
+    </div>
+    <div id="history"><div class="empty">No runs yet</div></div>
+  </div>
+
+  <!-- Logs -->
+  <div class="card">
+    <div class="card-head">
+      <div class="icon">📜</div>
+      <h2>Recent log</h2>
+      <button class="btn sec" id="btn-log" type="button" style="margin-left:auto">Refresh</button>
+    </div>
+    <pre id="log">(loading)</pre>
+  </div>
+</main>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const URI_HINTS = {
+  postgres: 'PostgreSQL: postgresql://user:pass@host:5432/dbname',
+  mysql: 'MySQL: mysql://user:pass@host:3306/dbname',
+  mariadb: 'MariaDB: mysql://user:pass@host:3306/dbname',
+  sqlite: 'SQLite: absolute path to .db file, e.g. /var/lib/app/data.db',
+  mongodb: 'MongoDB: mongodb://user:pass@host:27017/dbname',
+  redis: 'Redis: redis://:password@host:6379/0  or  host:port',
+  mssql: 'SQL Server: sqlserver://user:pass@host:1433?database=dbname',
+  files: 'Files: absolute folder path to back up, e.g. /var/www/uploads',
+  command: 'Command: shell command that writes a dump to stdout'
+};
+
+let currentStep = 1;
+const totalSteps = 4;
+
+function $(id) { return document.getElementById(id); }
+
+async function api(path, method, body) {
+  const opt = { method: method || 'GET', headers: {}, credentials: 'same-origin' };
+  if (body !== undefined) {
+    opt.headers['Content-Type'] = 'application/json';
+    opt.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opt);
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+  return d;
+}
+
+function toast(text, bad) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + (bad ? 'err' : 'ok');
+  el.textContent = text;
+  $('toasts').appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.3s';
+    setTimeout(() => el.remove(), 300);
+  }, 4200);
+}
+
+function msg(t, bad) {
+  const el = $('msg');
+  el.textContent = t || '';
+  el.className = bad ? 'err' : 'ok';
+  if (t) toast(t, bad);
+}
+
+function setStep(n) {
+  currentStep = Math.max(1, Math.min(totalSteps, n));
+  document.querySelectorAll('.step-panel').forEach(p => {
+    p.classList.toggle('active', Number(p.dataset.step) === currentStep);
+  });
+  document.querySelectorAll('.step-btn').forEach(b => {
+    const s = Number(b.dataset.step);
+    b.classList.toggle('active', s === currentStep);
+    b.classList.toggle('done', s < currentStep);
+  });
+  $('btn-prev').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+  $('btn-next').textContent = currentStep === totalSteps ? 'Done' : 'Next →';
+  if (currentStep === 4) renderReview();
+}
+
+function toggleDest() {
+  const m = $('dest_mode').value;
+  ['s3', 'local', 'azure', 'webdav', 'sftp'].forEach(k => {
+    const el = $(k + '-fields');
+    if (el) el.classList.toggle('show', m === k);
+  });
+}
+
+function updateUriHint() {
+  const t = $('db_type').value;
+  $('uri-hint').textContent = URI_HINTS[t] || '';
+  const ph = {
+    postgres: 'postgresql://user:pass@127.0.0.1:5432/db',
+    mysql: 'mysql://user:pass@127.0.0.1:3306/db',
+    mariadb: 'mysql://user:pass@127.0.0.1:3306/db',
+    sqlite: '/var/lib/app/data.db',
+    mongodb: 'mongodb://user:pass@127.0.0.1:27017/db',
+    redis: 'redis://:password@127.0.0.1:6379/0',
+    mssql: 'sqlserver://user:pass@127.0.0.1:1433?database=db',
+    files: '/path/to/folder',
+    command: 'mysqldump -u user -p db'
+  };
+  $('db_uri').placeholder = ph[t] || '';
+}
+
+function bodyFromForm() {
+  return {
+    name: $('name').value.trim(),
+    schedule: $('schedule').value.trim(),
+    retention: Number($('retention').value) || 14,
+    license: {
+      server_url: $('server_url').value.trim(),
+      token: $('token').value.trim()
+    },
+    security: { encrypt: $('encrypt').checked },
+    database: {
+      type: $('db_type').value,
+      uri: $('db_uri').value.trim(),
+      backup_type: $('backup_type').value
+    },
+    destination: {
+      mode: $('dest_mode').value,
+      s3_endpoint: $('s3_endpoint').value.trim(),
+      s3_region: $('s3_region').value.trim(),
+      s3_bucket: $('s3_bucket').value.trim(),
+      s3_prefix: $('s3_prefix').value.trim(),
+      s3_access_key: $('s3_access_key').value.trim(),
+      s3_secret_key: $('s3_secret_key').value,
+      local_dir: $('local_dir').value.trim(),
+      azure_account: $('azure_account').value.trim(),
+      azure_key: $('azure_key').value,
+      azure_container: $('azure_container').value.trim(),
+      azure_prefix: $('azure_prefix').value.trim(),
+      azure_endpoint: $('azure_endpoint').value.trim(),
+      webdav_url: $('webdav_url').value.trim(),
+      webdav_user: $('webdav_user').value.trim(),
+      webdav_password: $('webdav_password').value,
+      sftp_host: $('sftp_host').value.trim(),
+      sftp_user: $('sftp_user').value.trim(),
+      sftp_password: $('sftp_password').value,
+      sftp_key_file: $('sftp_key_file').value.trim(),
+      sftp_path: $('sftp_path').value.trim()
+    }
+  };
+}
+
+function fill(cfg) {
+  if (!cfg) return;
+  $('name').value = cfg.name || '';
+  $('schedule').value = cfg.schedule || '0 3 * * *';
+  $('server_url').value = (cfg.license && cfg.license.server_url) || '';
+  $('token').placeholder = (cfg.license && cfg.license.token_set)
+    ? 'token saved — leave blank to keep'
+    : 'paste token once';
+  if (cfg.database) {
+    $('db_type').value = cfg.database.type || 'postgres';
+    $('db_uri').value = cfg.database.uri || '';
+    $('backup_type').value = cfg.database.backup_type || 'full';
+  }
+  if (cfg.destination) {
+    $('dest_mode').value = cfg.destination.mode || 's3';
+    $('s3_endpoint').value = cfg.destination.s3_endpoint || '';
+    $('s3_region').value = cfg.destination.s3_region || '';
+    $('s3_bucket').value = cfg.destination.s3_bucket || '';
+    $('s3_prefix').value = cfg.destination.s3_prefix || '';
+    $('s3_access_key').value = cfg.destination.s3_access_key || '';
+    $('local_dir').value = cfg.destination.local_dir || '';
+    $('azure_account').value = cfg.destination.azure_account || '';
+    $('azure_container').value = cfg.destination.azure_container || '';
+    $('azure_prefix').value = cfg.destination.azure_prefix || '';
+    $('azure_endpoint').value = cfg.destination.azure_endpoint || '';
+    $('webdav_url').value = cfg.destination.webdav_url || '';
+    $('webdav_user').value = cfg.destination.webdav_user || '';
+    $('sftp_host').value = cfg.destination.sftp_host || '';
+    $('sftp_user').value = cfg.destination.sftp_user || '';
+    $('sftp_key_file').value = cfg.destination.sftp_key_file || '';
+    $('sftp_path').value = cfg.destination.sftp_path || '';
+  }
+  if (cfg.retention != null) $('retention').value = cfg.retention;
+  if (cfg.security && cfg.security.encrypt != null) $('encrypt').checked = !!cfg.security.encrypt;
+  toggleDest();
+  updateUriHint();
+}
+
+function renderReview() {
+  const b = bodyFromForm();
+  const dest = b.destination.mode;
+  let destDetail = dest;
+  if (dest === 's3') destDetail = `S3 → ${b.destination.s3_bucket || '(bucket)'} @ ${b.destination.s3_endpoint || 'default'}`;
+  else if (dest === 'local') destDetail = `Local → ${b.destination.local_dir || '(path)'}`;
+  else if (dest === 'azure') destDetail = `Azure → ${b.destination.azure_account || '(account)'}/${b.destination.azure_container || '(container)'}`;
+  else if (dest === 'webdav') destDetail = `WebDAV → ${b.destination.webdav_url || '(url)'}`;
+  else if (dest === 'sftp') destDetail = `SFTP → ${b.destination.sftp_host || '(host)'}${b.destination.sftp_path || ''}`;
+  else if (dest === 'vaultbackup') destDetail = 'VaultBackup Worker upload';
+
+  const rows = [
+    ['Agent name', b.name || '—'],
+    ['Schedule', b.schedule || '—'],
+    ['Worker URL', b.license.server_url || '—'],
+    ['Token', b.license.token ? '•••••••• (new)' : '(keep existing)'],
+    ['Database', `${b.database.type} · ${b.database.backup_type}`],
+    ['Connection', b.database.uri ? (b.database.uri.length > 48 ? b.database.uri.slice(0, 48) + '…' : b.database.uri) : '—'],
+    ['Destination', destDetail],
+    ['Retention', String(b.retention)],
+    ['Encryption', b.security.encrypt ? 'AES-256-GCM on' : 'Off']
+  ];
+  $('review-summary').innerHTML = rows.map(([k, v]) =>
+    `<div class="review-row"><span class="review-k">${k}</span><span class="review-v">${escapeHtml(v)}</span></div>`
+  ).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function setBar(wrapId, barId, pct) {
+  const wrap = $(wrapId);
+  const bar = $(barId);
+  const p = Math.min(100, Math.max(0, pct || 0));
+  bar.style.width = p + '%';
+  wrap.classList.remove('warn', 'crit');
+  if (p >= 90) wrap.classList.add('crit');
+  else if (p >= 75) wrap.classList.add('warn');
+}
+
+async function refreshStatus() {
+  try {
+    const d = await api('/api/status');
+    const h = d.host || d || {};
+    $('m-host').textContent = h.hostname || h.host || '—';
+    $('m-os').textContent = [h.os, h.arch, h.version].filter(Boolean).join(' · ') || '';
+
+    if (h.cpuPercent != null) {
+      $('m-cpu').textContent = Math.round(h.cpuPercent) + '%';
+      setBar('bar-cpu-wrap', 'bar-cpu', h.cpuPercent);
+    }
+    if (h.memUsedMb != null && h.memTotalMb) {
+      const pct = 100 * h.memUsedMb / h.memTotalMb;
+      $('m-ram').textContent = Math.round(h.memUsedMb) + ' / ' + Math.round(h.memTotalMb) + ' MB';
+      setBar('bar-ram-wrap', 'bar-ram', pct);
+    } else if (h.memUsedMb != null) {
+      $('m-ram').textContent = Math.round(h.memUsedMb) + ' MB (process)';
+    }
+
+    const db = d.database || d.db || {};
+    $('db-status').textContent = db.status || db.ok === true ? 'OK' : (db.status || '—');
+    if (db.ok === false) $('db-status').textContent = 'Unreachable';
+    $('db-lat').textContent = db.latencyMs != null ? db.latencyMs + ' ms' : (db.latency || '—');
+    $('db-detail').textContent = db.detail || db.message || '—';
+    const parts = [];
+    if (db.tools) parts.push(...(Array.isArray(db.tools) ? db.tools : [db.tools]));
+    if (db.version) parts.push(db.version);
+    $('db-tools').textContent = parts.length ? ('Tools: ' + parts.join(', ')) : '';
+
+    const sb = $('setup-badge');
+    if (d.complete) { sb.textContent = 'Ready'; sb.className = 'badge ok'; }
+    else { sb.textContent = 'Setup needed'; sb.className = 'badge warn'; }
+    const lb = $('lic-badge');
+    if (d.licenseOk) { lb.textContent = 'License OK'; lb.className = 'badge ok'; }
+    else { lb.textContent = d.licenseReason ? 'License: check needed' : 'License'; lb.className = 'badge warn'; }
+    if (d.lastError) msg(d.lastError, true);
+  } catch (e) { /* quiet */ }
+}
+
+async function loadConfig() {
+  const d = await api('/api/config');
+  fill(d.config);
+}
+
+async function loadHistory() {
+  try {
+    const d = await api('/api/history');
+    const el = $('history');
+    if (!d.history || !d.history.length) {
+      el.innerHTML = '<div class="empty">No runs yet</div>';
+      return;
+    }
+    const rows = d.history.slice(0, 30).map(h => {
+      const st = (h.status || '').toLowerCase();
+      let pill = 'run';
+      let label = h.status || '—';
+      if (st === 'ok' || st === 'success' || st === 'completed') { pill = 'ok'; label = 'OK'; }
+      else if (st === 'failed' || st === 'error') { pill = 'fail'; label = 'Failed'; }
+      else if (st === 'running' || st === 'started') { pill = 'run'; label = 'Running'; }
+      const when = h.started || h.time || h.ts || '—';
+      const size = h.size || h.bytes || '';
+      const detail = h.message || h.error || h.path || '';
+      return `<tr>
+        <td>${escapeHtml(when)}</td>
+        <td><span class="pill ${pill}">${escapeHtml(label)}</span></td>
+        <td>${escapeHtml(String(size))}</td>
+        <td class="muted">${escapeHtml(String(detail).slice(0, 80))}</td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `<table class="hist-table">
+      <tr><th>When</th><th>Status</th><th>Size</th><th>Detail</th></tr>
+      ${rows}
+    </table>`;
+  } catch (e) {
+    $('history').innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// Events
+$('dest_mode').addEventListener('change', toggleDest);
+$('db_type').addEventListener('change', updateUriHint);
+
+document.querySelectorAll('.step-btn').forEach(b => {
+  b.addEventListener('click', () => setStep(Number(b.dataset.step)));
+});
+$('btn-prev').onclick = () => setStep(currentStep - 1);
+$('btn-next').onclick = () => {
+  if (currentStep < totalSteps) setStep(currentStep + 1);
+};
+
+$('btn-save').onclick = async () => {
+  try {
+    msg('Saving…');
+    const d = await api('/api/config', 'POST', bodyFromForm());
+    msg(d.complete ? 'Saved. Configuration is complete.' : 'Saved, but some required fields are still missing.', !d.complete);
+    $('token').value = '';
+    await refreshStatus();
+  } catch (e) { msg(e.message, true); }
+};
+
+$('btn-license').onclick = async () => {
+  try {
+    msg('Checking license…');
+    await api('/api/config', 'POST', bodyFromForm());
+    const d = await api('/api/test-license', 'POST', {});
+    if (d.ok || d.allowed) {
+      msg('License OK' + (d.plan ? ' · plan ' + d.plan : '') + (d.agentId ? ' · ' + d.agentId : ''));
+    } else {
+      msg(d.error || d.reason || 'Denied', true);
+    }
+    await refreshStatus();
+  } catch (e) { msg(e.message, true); }
+};
+
+$('btn-run').onclick = async () => {
+  try {
+    msg('Starting backup…');
+    const d = await api('/api/run-once', 'POST', {});
+    msg(d.message || 'Started');
+    setTimeout(loadHistory, 1500);
+  } catch (e) { msg(e.message, true); }
+};
+
+$('btn-hist').onclick = loadHistory;
+$('btn-log').onclick = async () => {
+  try {
+    const d = await api('/api/logs');
+    $('log').textContent = d.log || '(empty)';
+  } catch (e) { $('log').textContent = e.message; }
+};
+
+// Init
+setStep(1);
+toggleDest();
+updateUriHint();
+loadConfig().then(refreshStatus);
+loadHistory();
+setInterval(refreshStatus, 5000);
+setInterval(() => { $('btn-log').click(); }, 15000);
+$('btn-log').click();
+</script>
+</body>
+</html>
