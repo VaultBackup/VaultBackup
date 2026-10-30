@@ -23,8 +23,7 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        # Implicitly uses the default GITHUB_TOKEN automatically, no token assignment required here
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -46,17 +45,17 @@ jobs:
             go mod tidy || true
           fi
           
-          # Build macOS (Darwin) architectures targeting the root directory (.)
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-arm64 .
+          # Build macOS (Darwin) architectures using recursive subfolder scanning (./...)
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-amd64 ./...
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-darwin-arm64 ./...
 
-          # Build Linux architectures targeting the root directory (.)
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-amd64 .
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-arm64 .
+          # Build Linux architectures using recursive subfolder scanning (./...)
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-amd64 ./...
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-linux-arm64 ./...
 
-          # Build Windows architectures targeting the root directory (.)
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-amd64.exe .
-          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-arm64.exe .
+          # Build Windows architectures using recursive subfolder scanning (./...)
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-amd64.exe ./...
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o vaultbackup-agent-windows-arm64.exe ./...
 
       - name: Commit and Push Binaries
         run: |
@@ -70,5 +69,6 @@ jobs:
             echo "No compiled executable changes detected. Skipping automation step."
           else
             git commit -m "chore(build): update deployment binaries [skip ci]"
+            # The actions/checkout step saves the authentication in the git config natively, so a clean git push works
             git push origin HEAD:${{ github.ref_name }}
           fi
