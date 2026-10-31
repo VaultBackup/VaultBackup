@@ -29,6 +29,7 @@ func hostname() string {
 }
 
 func machineID() string {
+	// Best-effort cross-platform machine id
 	candidates := []string{
 		"/etc/machine-id",
 		"/var/lib/dbus/machine-id",
@@ -42,5 +43,6 @@ func machineID() string {
 			}
 		}
 	}
+	// Windows / fallback: hostname only
 	return hostname()
 }
