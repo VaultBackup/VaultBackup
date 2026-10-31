@@ -1,0 +1,33 @@
+{
+  "name": "office-pc-1",
+  "schedule": "0 3 * * *",
+  "work_dir": "C:\\ProgramData\\VaultBackup\\data",
+  "log_file": "C:\\ProgramData\\VaultBackup\\data\\agent.log",
+  "log_max_mb": 20,
+  "compression": "gzip",
+  "retention": 14,
+  "license": {
+    "token": "",
+    "check_every_hours": 6
+  },
+  "security": {
+    "encrypt": true,
+    "key_file": "C:\\ProgramData\\VaultBackup\\data\\agent.key"
+  },
+  "database": {
+    "type": "postgres",
+    "uri": "postgresql://user:pass@127.0.0.1:5432/db",
+    "backup_type": "full",
+    "use_vss": false,
+    "prefer_native_tools": true
+  },
+  "destination": {
+    "mode": "s3",
+    "s3_endpoint": "",
+    "s3_region": "us-east-1",
+    "s3_bucket": "",
+    "s3_prefix": "desktop/office-pc-1/",
+    "s3_access_key": "",
+    "s3_secret_key": ""
+  }
+}
