@@ -12,7 +12,7 @@ import (
 type Entry struct {
 	Started   time.Time `json:"started"`
 	Finished  time.Time `json:"finished,omitempty"`
-	Status    string    `json:"status"`
+	Status    string    `json:"status"` // ok | failed | running
 	Type      string    `json:"type,omitempty"`
 	SizeBytes int64     `json:"sizeBytes,omitempty"`
 	Path      string    `json:"path,omitempty"`
