@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/vaultbackup/agent/internal/config"
+	"github.com/vaultbackup/agent/internal/httpx"
 )
 
 // Failure posts a critical error to the configured webhook.
@@ -26,7 +27,7 @@ func Failure(cfg config.Config, title, detail string) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return
 	}

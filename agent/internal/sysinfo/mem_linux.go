@@ -23,7 +23,7 @@ func memInfo() (usedMb, totalMb float64) {
 		if len(fields) < 2 {
 			continue
 		}
-		val, _ := strconv.ParseFloat(fields[1], 64)
+		val, _ := strconv.ParseFloat(fields[1], 64) // kB
 		switch fields[0] {
 		case "MemTotal:":
 			total = val / 1024
@@ -38,5 +38,6 @@ func memInfo() (usedMb, totalMb float64) {
 }
 
 func cpuPercent() float64 {
+	// Lightweight: report 0 if we can't sample; full sampling needs two reads.
 	return 0
 }
