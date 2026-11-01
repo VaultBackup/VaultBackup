@@ -12,6 +12,7 @@ import (
 
 	"github.com/vaultbackup/agent/internal/config"
 	"github.com/vaultbackup/agent/internal/fingerprint"
+	"github.com/vaultbackup/agent/internal/httpx"
 )
 
 const gracePeriod = 72 * time.Hour
@@ -66,8 +67,9 @@ func Check(cfg config.Config) (Status, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.License.Token)
+	req.Header.Set("X-VaultBackup-Device", fingerprint.Device())
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return offlineStatus(), fmt.Errorf("license server unreachable: %w", err)
 	}
@@ -175,7 +177,8 @@ func post(cfg config.Config, path string, payload any) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.License.Token)
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("X-VaultBackup-Device", fingerprint.Device())
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return err
 	}
