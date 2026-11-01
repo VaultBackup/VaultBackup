@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +14,10 @@ import (
 	"github.com/vaultbackup/agent/internal/db"
 	"github.com/vaultbackup/agent/internal/history"
 	"github.com/vaultbackup/agent/internal/license"
+	"github.com/vaultbackup/agent/internal/logging"
+	"github.com/vaultbackup/agent/internal/retention"
+	"github.com/vaultbackup/agent/internal/schedule"
+	"github.com/vaultbackup/agent/internal/secure"
 	"github.com/vaultbackup/agent/internal/notify"
 	"github.com/vaultbackup/agent/internal/sysinfo"
 	"github.com/vaultbackup/agent/internal/upload"
@@ -26,6 +30,8 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "Config path")
 	webuiAddr := flag.String("webui", "127.0.0.1:8787", "Web UI listen address")
 	webuiPass := flag.String("webui-password", os.Getenv("WEBUI_PASSWORD"), "Optional UI password")
+	webuiTLSCert := flag.String("webui-tls-cert", firstEnv("WEBUI_TLS_CERT", "VAULTBACKUP_WEBUI_TLS_CERT"), "PEM certificate for HTTPS Web UI")
+	webuiTLSKey := flag.String("webui-tls-key", firstEnv("WEBUI_TLS_KEY", "VAULTBACKUP_WEBUI_TLS_KEY"), "PEM private key for HTTPS Web UI")
 	noWebUI := flag.Bool("no-webui", false, "Disable Web UI")
 	once := flag.Bool("once", false, "Run one backup then exit")
 	backupType := flag.String("type", "", "Override backup type for this run")
@@ -42,23 +48,27 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
-	_ = os.MkdirAll(cfg.WorkDir, 0o755)
+	_ = os.MkdirAll(cfg.WorkDir, 0o700)
 	history.Init(cfg.WorkDir)
 	setupLogging(cfg)
 
 	log.Printf("VaultBackup Agent %s starting (name=%s)", version, cfg.Name)
 
 	var runMu sync.Mutex
-	runBackup := func() error {
+	runBackup := func(typeOverride string) error {
 		if !runMu.TryLock() {
 			return fmt.Errorf("backup already running")
 		}
 		defer runMu.Unlock()
-		return doBackup(config.Get(), *backupType)
+		ov := typeOverride
+		if ov == "" {
+			ov = *backupType
+		}
+		return doBackup(config.Get(), ov)
 	}
 
 	if *once {
-		if err := runBackup(); err != nil {
+		if err := runBackup(""); err != nil {
 			log.Fatalf("backup: %v", err)
 		}
 		return
@@ -66,19 +76,31 @@ func main() {
 
 	go licenseLoop()
 	go statusLoop()
-	go scheduleLoop(cfg.Schedule, runBackup)
+	go scheduleLoop(runBackup)
 
 	if *noWebUI || *webuiAddr == "" {
 		log.Printf("Web UI disabled")
 		select {}
 	}
 
-	srv := webui.New(*webuiAddr, *webuiPass)
-	srv.OnRun = runBackup
-	log.Printf("Web UI listening on http://%s", *webuiAddr)
+	srv := webui.New(*webuiAddr, *webuiPass).WithTLS(*webuiTLSCert, *webuiTLSKey)
+	srv.OnRun = func() error { return runBackup("") }
+	log.Printf("Web UI listening on %s://%s", srv.Scheme(), *webuiAddr)
+	if srv.TLSEnabled() {
+		log.Printf("Web UI TLS enabled cert=%s", *webuiTLSCert)
+	}
 	if err := srv.Start(); err != nil {
 		log.Fatalf("webui: %v", err)
 	}
+}
+
+func firstEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func doBackup(cfg config.Config, typeOverride string) error {
@@ -87,6 +109,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		msg := "backup blocked: " + reason
 		log.Print(msg)
 		notify.Failure(cfg, "License blocked", reason)
+		_ = license.PushCritical(cfg, msg)
 		return fmt.Errorf("%s", msg)
 	}
 
@@ -97,14 +120,19 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	start := time.Now()
 	_ = history.Append(history.Entry{Started: start, Status: "running", Type: bt})
 
-	log.Printf("backup starting type=%s db=%s", bt, cfg.Database.Type)
-	res, err := db.Dump(cfg.WorkDir, cfg.Database.Type, cfg.Database.URI, bt)
+	log.Printf("backup starting type=%s db=%s vss=%v native=%v", bt, cfg.Database.Type, cfg.Database.UseVSS, cfg.Database.PreferNativeTools)
+	res, err := db.DumpWithOptions(cfg.WorkDir, cfg.Database.Type, cfg.Database.URI, db.Options{
+		BackupType:        bt,
+		UseVSS:            cfg.Database.UseVSS,
+		PreferNativeTools: cfg.Database.PreferNativeTools,
+	})
 	if err != nil {
 		_ = history.Append(history.Entry{
 			Started: start, Finished: time.Now(), Status: "failed", Type: bt,
-			Error: err.Error(), Duration: time.Since(start).String(),
+			Error: secure.RedactText(err.Error()), Duration: time.Since(start).String(),
 		})
 		notify.Failure(cfg, "Backup failed", err.Error())
+		_ = license.PushCritical(cfg, "backup failed: "+err.Error())
 		_ = license.PushEvent(cfg, map[string]any{"event": "backup_finished", "ok": false, "error": err.Error(), "type": bt, "name": cfg.Name})
 		return err
 	}
@@ -113,10 +141,13 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	if cfg.Security.Encrypt {
 		key, kerr := crypto.LoadOrCreateKey(cfg.Security.KeyFile)
 		if kerr != nil {
+			_ = license.PushCritical(cfg, "encrypt key: "+kerr.Error())
 			return kerr
 		}
 		encPath := res.Path + ".vbenc"
 		if err := crypto.EncryptFile(res.Path, encPath, key); err != nil {
+			notify.Failure(cfg, "Encrypt failed", err.Error())
+			_ = license.PushCritical(cfg, "encrypt failed: "+err.Error())
 			return err
 		}
 		_ = os.Remove(res.Path)
@@ -130,9 +161,11 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	if err != nil {
 		_ = history.Append(history.Entry{
 			Started: start, Finished: time.Now(), Status: "failed", Type: bt,
-			Error: err.Error(), Path: uploadPath, Duration: time.Since(start).String(),
+			Error: secure.RedactText(err.Error()), Path: uploadPath, Duration: time.Since(start).String(),
 		})
 		notify.Failure(cfg, "Upload failed", err.Error())
+		_ = license.PushCritical(cfg, "upload failed: "+err.Error())
+		_ = license.PushEvent(cfg, map[string]any{"event": "backup_finished", "ok": false, "error": err.Error(), "type": bt, "name": cfg.Name})
 		return err
 	}
 
@@ -146,7 +179,37 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		"event": "backup_finished", "ok": true, "type": bt, "size": res.SizeBytes,
 		"duration": dur.Seconds(), "remote": remote, "name": cfg.Name,
 	})
+	// Local retention for work dir and local destination
+	applyRetention(cfg)
 	return nil
+}
+
+func applyRetention(cfg config.Config) {
+	keep := cfg.Retention
+	if keep <= 0 {
+		keep = 14
+	}
+	pol := retention.Policy{
+		Daily:   cfg.RetentionPolicy.Daily,
+		Weekly:  cfg.RetentionPolicy.Weekly,
+		Monthly: cfg.RetentionPolicy.Monthly,
+		Yearly:  cfg.RetentionPolicy.Yearly,
+		Keep:    keep,
+	}
+	if err := pol.Apply(cfg.WorkDir); err != nil {
+		log.Printf("retention workdir: %v", err)
+	}
+	if strings.EqualFold(cfg.Destination.Mode, "local") {
+		dir := cfg.Destination.LocalDir
+		if dir == "" {
+			dir = cfg.Destination.LocalPath
+		}
+		if dir != "" {
+			if err := pol.Apply(dir); err != nil {
+				log.Printf("retention local dest: %v", err)
+			}
+		}
+	}
 }
 
 func licenseLoop() {
@@ -171,19 +234,81 @@ func statusLoop() {
 	}
 }
 
-func scheduleLoop(spec string, fn func() error) {
-	var minute, hour int = 0, 3
-	fmt.Sscanf(spec, "%d %d", &minute, &hour)
+// scheduleLoop evaluates primary schedule + optional Jobs[] using live config.
+func scheduleLoop(run func(typeOverride string) error) {
+	// Track last fire per job key to avoid double-fire within the same minute.
+	lastFire := map[string]time.Time{}
 	for {
+		cfg := config.Get()
+		logging.MaybeRotate(cfg.LogFile, cfg.LogMaxMB)
+
 		now := time.Now().UTC()
-		next := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, time.UTC)
-		if !next.After(now) {
-			next = next.Add(24 * time.Hour)
+		// Build job list: named jobs or single default
+		type jobRun struct {
+			key, name, spec, btype string
 		}
-		time.Sleep(time.Until(next))
-		if err := fn(); err != nil {
-			log.Printf("scheduled backup failed: %v", err)
+		var jobs []jobRun
+		if len(cfg.Jobs) > 0 {
+			for i, j := range cfg.Jobs {
+				spec := j.Schedule
+				if spec == "" {
+					spec = cfg.Schedule
+				}
+				bt := j.BackupType
+				if bt == "" {
+					bt = cfg.Database.BackupType
+				}
+				name := j.Name
+				if name == "" {
+					name = fmt.Sprintf("job-%d", i+1)
+				}
+				jobs = append(jobs, jobRun{key: name, name: name, spec: spec, btype: bt})
+			}
+		} else {
+			jobs = append(jobs, jobRun{key: "default", name: cfg.Name, spec: cfg.Schedule, btype: ""})
 		}
+
+		// Find soonest next wake
+		wake := now.Add(time.Hour)
+		for _, j := range jobs {
+			spec, err := schedule.Parse(j.spec)
+			if err != nil {
+				log.Printf("schedule %s: %v", j.key, err)
+				continue
+			}
+			next := spec.Next(now)
+			if next.Before(wake) {
+				wait := time.Until(next)
+				if wait < 0 {
+					wait = 0
+				}
+				// If due within 30s and not fired this minute, run
+				lf := lastFire[j.key]
+				sameMin := !lf.IsZero() && lf.Truncate(time.Minute).Equal(now.Truncate(time.Minute))
+				if wait <= 30*time.Second && !sameMin {
+					log.Printf("schedule: running job %q type=%s", j.name, j.btype)
+					if err := run(j.btype); err != nil {
+						log.Printf("scheduled job %q failed: %v", j.name, err)
+					}
+					lastFire[j.key] = time.Now().UTC()
+					next = spec.Next(time.Now().UTC())
+				}
+				if next.Before(wake) {
+					wake = next
+				}
+			}
+		}
+
+		sleep := time.Until(wake)
+		if sleep < 5*time.Second {
+			sleep = 5 * time.Second
+		}
+		if sleep > 5*time.Minute {
+			// Cap sleep so config/schedule edits apply reasonably soon
+			sleep = 5 * time.Minute
+		}
+		log.Printf("schedule: sleeping %s", sleep.Round(time.Second))
+		time.Sleep(sleep)
 	}
 }
 
@@ -191,13 +316,9 @@ func setupLogging(cfg config.Config) {
 	if cfg.LogFile == "" {
 		return
 	}
-	_ = os.MkdirAll(filepath.Dir(cfg.LogFile), 0o755)
-	f, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
+	if err := logging.Setup(cfg.LogFile, cfg.LogMaxMB); err != nil {
 		log.Printf("log file: %v", err)
-		return
 	}
-	log.SetOutput(f)
 }
 
 func runRestore(configPath, src, dst string) {

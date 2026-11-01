@@ -1,72 +1,72 @@
 package logging
 
 import (
-	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
 )
 
-// Rotator is a simple size-based log rotator.
-type Rotator struct {
-	path    string
-	maxSize int64
-	mu      sync.Mutex
-	f       *os.File
-}
-
-func NewRotator(path string, maxSizeMB int) (*Rotator, error) {
-	if maxSizeMB <= 0 {
-		maxSizeMB = 10
+// Setup configures the global logger to write to path with optional max size (MB).
+// When the file exceeds maxMB, it is rotated to path.1 (one generation kept).
+func Setup(path string, maxMB int) error {
+	if path == "" {
+		return nil
 	}
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
-	r := &Rotator{path: path, maxSize: int64(maxSizeMB) * 1024 * 1024}
-	if err := r.open(); err != nil {
-		return nil, err
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
-	return r, nil
-}
+	if maxMB <= 0 {
+		maxMB = 20
+	}
+	rotateIfNeeded(path, maxMB)
 
-func (r *Rotator) open() error {
-	f, err := os.OpenFile(r.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	r.f = f
+	// Avoid leaking the previous file handle on re-setup; process lifetime is usually once.
+	log.SetOutput(f)
+	log.SetFlags(log.LstdFlags | log.LUTC)
 	return nil
 }
 
-func (r *Rotator) Write(p []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.f == nil {
-		if err := r.open(); err != nil {
-			return 0, err
-		}
+func rotateIfNeeded(path string, maxMB int) {
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return
 	}
-	st, err := r.f.Stat()
-	if err == nil && st.Size()+int64(len(p)) > r.maxSize {
-		_ = r.f.Close()
-		rotated := fmt.Sprintf("%s.%s", r.path, time.Now().UTC().Format("20060102-150405"))
-		_ = os.Rename(r.path, rotated)
-		if err := r.open(); err != nil {
-			return 0, err
-		}
+	limit := int64(maxMB) * 1024 * 1024
+	if st.Size() < limit {
+		return
 	}
-	return r.f.Write(p)
+	bak := path + ".1"
+	_ = os.Remove(bak)
+	_ = os.Rename(path, bak)
 }
 
-func (r *Rotator) Close() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.f != nil {
-		err := r.f.Close()
-		r.f = nil
-		return err
+// MaybeRotate checks size and rotates; call periodically from long-running agents.
+func MaybeRotate(path string, maxMB int) {
+	if path == "" {
+		return
 	}
-	return nil
+	if maxMB <= 0 {
+		maxMB = 20
+	}
+	rotateIfNeeded(path, maxMB)
 }
 
-var _ io.Writer = (*Rotator)(nil)
+// Multi returns a writer to file + stderr (optional dual log).
+func Multi(path string) (io.Writer, error) {
+	if path == "" {
+		return os.Stderr, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	return io.MultiWriter(f, os.Stderr), nil
+}
