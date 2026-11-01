@@ -50,7 +50,11 @@ func LoadKeyProtected(path string) ([]byte, error) {
 
 // SaveKeyProtected writes key with restrictive permissions.
 func SaveKeyProtected(path string, key []byte) error {
-	return os.WriteFile(path, key, 0o600)
+	if err := os.WriteFile(path, key, 0o600); err != nil {
+		return err
+	}
+	_ = os.Chmod(path, 0o600)
+	return nil
 }
 
 // EncryptFile encrypts src → dst using AES-256-GCM (format VBK2).
@@ -80,6 +84,7 @@ func EncryptFile(src, dst string, key []byte) error {
 		return err
 	}
 
+	// header: magic(4) + nonce(12)
 	if _, err := out.Write([]byte(magicV2)); err != nil {
 		return err
 	}
@@ -87,14 +92,17 @@ func EncryptFile(src, dst string, key []byte) error {
 		return err
 	}
 
+	// stream in chunks
 	buf := make([]byte, 64*1024)
 	var seq uint64
 	for {
 		n, rerr := in.Read(buf)
 		if n > 0 {
+			// prepend seq to AAD for ordering
 			aad := make([]byte, 8)
 			binary.BigEndian.PutUint64(aad, seq)
 			ct := gcm.Seal(nil, nonceFor(nonce, seq), buf[:n], aad)
+			// length-prefix ciphertext
 			var lenBuf [4]byte
 			binary.BigEndian.PutUint32(lenBuf[:], uint32(len(ct)))
 			if _, err := out.Write(lenBuf[:]); err != nil {
@@ -131,7 +139,7 @@ func DecryptFile(src, dst string, key []byte) error {
 	case magicV2:
 		return decryptV2(in, dst, key)
 	default:
-		return decryptV1(src, dst, key)
+		return decryptV1(src, dst, key) // legacy whole-file GCM
 	}
 }
 
@@ -213,6 +221,7 @@ func decryptV1(src, dst string, key []byte) error {
 func nonceFor(base []byte, seq uint64) []byte {
 	n := make([]byte, nonceSize)
 	copy(n, base)
+	// XOR seq into last 8 bytes
 	for i := 0; i < 8; i++ {
 		n[nonceSize-1-i] ^= byte(seq >> (8 * i))
 	}
