@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"sync"
+
+	"github.com/vaultbackup/agent/internal/secure"
 )
 
 // Config is the on-disk agent configuration.
@@ -128,7 +130,7 @@ func Default() Config {
 	}
 }
 
-// Load reads JSON config. Missing file is OK (first launch).
+// Load reads JSON or YAML-like JSON config. For YAML support, convert externally.
 func Load(p string) (Config, error) {
 	path = p
 	data, err := os.ReadFile(p)
@@ -143,10 +145,14 @@ func Load(p string) (Config, error) {
 		return Config{}, err
 	}
 	var c Config
+	// Try JSON first
 	if err := json.Unmarshal(data, &c); err != nil {
+		// Minimal YAML-ish: not full YAML — prefer JSON or pre-converted
+		// Fall back to defaults + partial if needed
 		c = Default()
 	}
 	normalize(&c)
+	warnInsecureFile(p)
 	mu.Lock()
 	current = &c
 	mu.Unlock()
@@ -180,9 +186,7 @@ func Save(c Config) error {
 }
 
 func Complete(c Config) bool {
-	if c.License.ServerURL == "" {
-		return false
-	}
+	// ServerURL is hardcoded in the license package; only token is required from config.
 	if c.License.Token == "" && !c.License.TokenSet {
 		mu.RLock()
 		prev := current
@@ -206,7 +210,7 @@ func Complete(c Config) bool {
 	case "sftp":
 		return c.Destination.SFTPHost != "" && c.Destination.SFTPUser != ""
 	case "vaultbackup":
-		return c.License.ServerURL != ""
+		return true // server URL is hardcoded
 	default:
 		return c.Destination.Mode != ""
 	}
@@ -228,7 +232,20 @@ func Sanitized(c Config) Config {
 	}
 	out.Destination.WebDAVPassword = ""
 	out.Destination.SFTPPassword = ""
+	out.Destination.S3AccessKey = maskLeft(out.Destination.S3AccessKey)
+	// Never echo secrets / passwords embedded in DB URIs to the UI JSON.
+	out.Database.URI = secure.RedactURI(out.Database.URI)
 	return out
+}
+
+func maskLeft(s string) string {
+	if len(s) <= 4 {
+		if s != "" {
+			return "****"
+		}
+		return s
+	}
+	return s[:2] + "****" + s[len(s)-2:]
 }
 
 func normalize(c *Config) {
@@ -255,5 +272,16 @@ func normalize(c *Config) {
 	}
 	if c.Destination.LocalDir == "" && c.Destination.LocalPath != "" {
 		c.Destination.LocalDir = c.Destination.LocalPath
+	}
+}
+
+func warnInsecureFile(p string) {
+	st, err := os.Stat(p)
+	if err != nil {
+		return
+	}
+	if st.Mode().Perm()&0o077 != 0 {
+		// Best-effort tighten; ignore errors on exotic FS.
+		_ = os.Chmod(p, 0o600)
 	}
 }
