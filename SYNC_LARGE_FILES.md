@@ -1,36 +1,22 @@
-# Sync large local files to GitHub
+# Sync status
 
-These files could not be uploaded through the remote agent’s GitHub file API
-(payload size limits). Copy them from your machine:
+## On `main` (pushed via API)
+- **Full enhanced agent UI** in `agent/internal/webui/embed.go` (gzip+base64; decompresses at runtime to the full dashboard).
+- Agent Go tree under `agent/` (cmd, packages, packaging, webui server + icons).
+- Placeholder `worker.js` (replace with the real ~422 KB worker locally).
 
-| Local artifact | Repo path | Approx size |
-|----------------|-----------|-------------|
+## Still push locally (too large for Contents API)
+
+| Local artifact | Repo path | Size |
+|----------------|-----------|------|
 | `artifacts/worker.js` | `worker.js` | ~422 KB |
-| `artifacts/vaultbackup-agent-ui-enhanced.html` | `vaultbackup-agent-ui-enhanced.html` | ~41 KB |
-| `agent-source/internal/webui/embed.go` (optional full UI) | `agent/internal/webui/embed.go` | ~37 KB |
-
-## Commands
+| `artifacts/vaultbackup-agent-ui-enhanced.html` | optional root copy | ~41 KB |
 
 ```bash
 git clone git@github.com:VaultBackup/VaultBackup.git
 cd VaultBackup
-
-# Adjust paths to your project folder
-ART=/path/to/artifacts
-
-cp "$ART/worker.js" .
-cp "$ART/vaultbackup-agent-ui-enhanced.html" .
-
-# Optional: full embedded agent dashboard (replaces compact UI on main)
-# cp "$ART/agent-source/internal/webui/embed.go" agent/internal/webui/embed.go
-
-git add worker.js vaultbackup-agent-ui-enhanced.html
-git commit -m "feat: add full Cloudflare worker and enhanced agent UI HTML"
+cp /path/to/artifacts/worker.js .
+git add worker.js
+git commit -m "feat: full Cloudflare worker"
 git push
 ```
-
-## Already on `main`
-
-The **agent** Go tree under `agent/` is synced (cmd, internal packages, webui
-server + compact embed + base64 icons, packaging scripts). `go build ./cmd/agent`
-should work without the large root files.
