@@ -1,7 +1,6 @@
 package webui
 
 import (
-	"embed"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
@@ -19,9 +18,6 @@ import (
 	"github.com/vaultbackup/agent/internal/secure"
 	"github.com/vaultbackup/agent/internal/sysinfo"
 )
-
-//go:embed assets/icon.ico assets/icon.png assets/favicon-32.png
-var staticAssets embed.FS
 
 // Server is the local setup UI.
 type Server struct {
@@ -516,23 +512,21 @@ func LocalIPs() []string {
 }
 
 func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
-	data, err := staticAssets.ReadFile("assets/icon.ico")
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "image/x-icon")
-	w.Header().Set("Cache-Control", "public, max-age=86400")
-	_, _ = w.Write(data)
-}
-
-func (s *Server) handleIconPNG(w http.ResponseWriter, r *http.Request) {
-	data, err := staticAssets.ReadFile("assets/icon.png")
-	if err != nil {
+	if len(faviconBytes) == 0 {
 		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	_, _ = w.Write(data)
+	_, _ = w.Write(faviconBytes)
+}
+
+func (s *Server) handleIconPNG(w http.ResponseWriter, r *http.Request) {
+	if len(iconPNGBytes) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(iconPNGBytes)
 }
