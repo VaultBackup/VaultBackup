@@ -39,11 +39,21 @@ func ProbeDB(cfg config.Config) DBResult {
 		res = probeRedis(uri)
 	case "mssql":
 		res = probeTCP(uri, 1433)
-	case "sqlite", "files":
-		if _, err := os.Stat(strings.TrimPrefix(uri, "file:")); err != nil {
+	case "sqlite", "files", "quickbooks", "sage50", "access":
+		p := strings.TrimPrefix(uri, "file:")
+		if _, err := os.Stat(p); err != nil {
 			res = DBResult{Status: "Unreachable", OK: false, Detail: err.Error()}
 		} else {
-			res = DBResult{Status: "OK", OK: true, Detail: "path exists"}
+			detail := "path exists"
+			switch t {
+			case "quickbooks":
+				detail = "path exists (QuickBooks company file/folder)"
+			case "sage50":
+				detail = "path exists (Sage 50 company folder)"
+			case "access":
+				detail = "path exists (Access database)"
+			}
+			res = DBResult{Status: "OK", OK: true, Detail: detail}
 		}
 	case "command":
 		res = DBResult{Status: "OK", OK: true, Detail: "command engine (no live probe)"}
@@ -53,6 +63,7 @@ func ProbeDB(cfg config.Config) DBResult {
 	if res.LatencyMs == 0 {
 		res.LatencyMs = time.Since(start).Milliseconds()
 	}
+	// tool discovery
 	tools := discoverTools(t)
 	if len(tools) > 0 {
 		res.Tools = strings.Join(tools, ", ")
@@ -73,6 +84,7 @@ func probeTCP(uri string, defaultPort int) DBResult {
 }
 
 func probeRedis(uri string) DBResult {
+	// Prefer redis-cli PING when available
 	if bin, err := exec.LookPath("redis-cli"); err == nil {
 		args := []string{"PING"}
 		if uri != "" {
@@ -126,6 +138,8 @@ func discoverTools(dbType string) []string {
 		names = []string{"sqlite3"}
 	case "oracle":
 		names = []string{"expdp", "exp"}
+	case "quickbooks", "sage50", "files", "access":
+		names = []string{"tar"}
 	default:
 		return nil
 	}
