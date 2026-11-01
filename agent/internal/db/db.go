@@ -47,16 +47,32 @@ func NormalizeType(t string) string {
 		return "cockroach"
 	case "custom":
 		return "command"
+	case "qb", "qbw", "quickbooks", "quickbooks_desktop", "quickbooks-desktop":
+		return "quickbooks"
+	case "sage", "sage50", "peachtree", "sage_50", "sage-50":
+		return "sage50"
+	case "access", "msaccess", "accdb", "mdb":
+		return "access"
 	default:
 		return strings.ToLower(t)
 	}
 }
 
 // Dump runs a backup for the given type/uri into workDir.
+// Prefer DumpWithOptions when VSS or native-tool flags are needed.
 func Dump(workDir, dbType, uri, backupType string) (Result, error) {
+	return DumpWithOptions(workDir, dbType, uri, DefaultOptions(backupType))
+}
+
+// DumpWithOptions runs a backup with platform options (VSS, native tools, …).
+func DumpWithOptions(workDir, dbType, uri string, opts Options) (Result, error) {
 	start := time.Now()
 	t := NormalizeType(dbType)
-	outName := fmt.Sprintf("backup-%s-%s-%s", t, backupType, start.UTC().Format("20060102T150405Z"))
+	bt := opts.BackupType
+	if bt == "" {
+		bt = "full"
+	}
+	outName := fmt.Sprintf("backup-%s-%s-%s", t, bt, start.UTC().Format("20060102T150405Z"))
 	var (
 		path string
 		err  error
@@ -73,19 +89,25 @@ func Dump(workDir, dbType, uri, backupType string) (Result, error) {
 	case "redis":
 		path, err = dumpRedis(workDir, outName, uri)
 	case "mssql":
-		path, err = dumpMSSQL(workDir, outName, uri, backupType)
+		path, err = dumpMSSQL(workDir, outName, uri, bt)
 	case "files":
-		path, err = dumpFiles(workDir, outName, uri, backupType)
+		path, err = dumpFiles(workDir, outName, uri, opts)
 	case "command":
 		path, err = dumpCommand(workDir, outName, uri)
 	case "oracle":
 		path, err = dumpOracle(workDir, outName, uri)
+	case "quickbooks":
+		path, err = dumpQuickBooks(workDir, outName, uri, opts)
+	case "sage50":
+		path, err = dumpSage50(workDir, outName, uri, opts)
+	case "access":
+		path, err = dumpAccess(workDir, outName, uri, opts)
 	default:
 		return Result{}, fmt.Errorf("unsupported database type %q", dbType)
 	}
 	res := Result{
 		Path:     path,
-		Type:     backupType,
+		Type:     bt,
 		Duration: time.Since(start),
 	}
 	if err != nil {
@@ -134,8 +156,10 @@ func dumpMySQL(workDir, name, uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Accept mysql://user:pass@host:port/db or plain args
 	args := []string{"--single-transaction", "--routines", "--triggers"}
 	if strings.Contains(uri, "://") {
+		// best-effort parse left to caller tooling; pass as --defaults or URI-like
 		args = append(args, uri)
 	} else {
 		args = append(args, uri)
@@ -151,6 +175,7 @@ func dumpSQLite(workDir, name, uri string) (string, error) {
 		return "", fmt.Errorf("sqlite file: %w", err)
 	}
 	out := outPath(workDir, name, ".db.gz")
+	// Prefer sqlite3 .backup if available, else copy+gzip
 	if bin, err := exec.LookPath("sqlite3"); err == nil {
 		tmp := outPath(workDir, name, ".db")
 		cmd := exec.Command(bin, src, ".backup "+tmp)
@@ -180,6 +205,7 @@ func dumpMongo(workDir, name, uri string) (string, error) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("mongodump: %w: %s", err, string(out))
 	}
+	// tar the directory
 	tarPath := dir + ".tar.gz"
 	tarCmd := exec.Command("tar", "-czf", tarPath, "-C", workDir, filepath.Base(dir))
 	if out, err := tarCmd.CombinedOutput(); err != nil {
@@ -212,6 +238,8 @@ func dumpMSSQL(workDir, name, uri, backupType string) (string, error) {
 		return "", err
 	}
 	out := outPath(workDir, name, ".bak")
+	// Expect uri like server=...;database=...;user=...;password=...
+	// Caller should supply a BACKUP DATABASE T-SQL via command mode for full control.
 	q := fmt.Sprintf("BACKUP DATABASE [db] TO DISK=N'%s' WITH INIT", out)
 	if backupType == "differential" || backupType == "incremental" {
 		q = fmt.Sprintf("BACKUP DATABASE [db] TO DISK=N'%s' WITH DIFFERENTIAL", out)
@@ -223,23 +251,105 @@ func dumpMSSQL(workDir, name, uri, backupType string) (string, error) {
 	return out, nil
 }
 
-func dumpFiles(workDir, name, src, backupType string) (string, error) {
-	if _, err := os.Stat(src); err != nil {
+func dumpFiles(workDir, name, src string, opts Options) (string, error) {
+	src = strings.TrimSpace(strings.TrimPrefix(src, "file:"))
+	if src == "" || strings.Contains(src, "\x00") {
+		return "", fmt.Errorf("files path: empty or invalid")
+	}
+	// Reject relative path escapes in the configured URI.
+	if strings.Contains(src, "..") {
+		clean := filepath.Clean(src)
+		if strings.Contains(clean, "..") {
+			return "", fmt.Errorf("files path: path traversal not allowed")
+		}
+		src = clean
+	}
+	st, err := os.Stat(src)
+	if err != nil {
 		return "", fmt.Errorf("files path: %w", err)
 	}
-	out := outPath(workDir, name, ".tar.gz")
-	args := []string{"-czf", out, "-C", filepath.Dir(src), filepath.Base(src)}
-	cmd := exec.Command("tar", args...)
-	if b, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("tar: %w: %s", err, string(b))
+
+	// Auto-detect platform files when user selected generic "files".
+	if !st.IsDir() {
+		ext := strings.ToLower(filepath.Ext(src))
+		switch ext {
+		case ".qbw":
+			return dumpQuickBooks(workDir, name, src, opts)
+		case ".accdb", ".mdb":
+			return dumpAccess(workDir, name, src, opts)
+		}
 	}
+
+	stage := filepath.Join(workDir, name+"-stage")
+	_ = os.RemoveAll(stage)
+	_ = os.MkdirAll(stage, 0o755)
+
+	var staged string
+	if opts.UseVSS {
+		staged, err = withVSSCopy(src, stage)
+	} else {
+		staged, err = directCopyTree(src, stage, st.IsDir())
+	}
+	if err != nil {
+		return "", fmt.Errorf("files copy: %w", err)
+	}
+
+	out := outPath(workDir, name, ".tar.gz")
+	if err := tarGzDir(staged, out); err != nil {
+		args := []string{"-czf", out, "-C", filepath.Dir(src), filepath.Base(src)}
+		cmd := exec.Command("tar", args...)
+		if b, terr := cmd.CombinedOutput(); terr != nil {
+			return "", fmt.Errorf("files archive: %v; tar: %v (%s)", err, terr, string(b))
+		}
+	}
+	_ = os.RemoveAll(stage)
 	return out, nil
 }
 
 func dumpCommand(workDir, name, cmdline string) (string, error) {
+	cmdline = strings.TrimSpace(cmdline)
+	if cmdline == "" {
+		return "", fmt.Errorf("command: empty command")
+	}
+	if len(cmdline) > 4096 {
+		return "", fmt.Errorf("command: too long")
+	}
+	for _, r := range cmdline {
+		if r == 10 || r == 13 || r == 0 {
+			return "", fmt.Errorf("command: multiline commands not allowed")
+		}
+	}
+	low := strings.ToLower(cmdline)
+	for _, bad := range []string{
+		"$(", "${",
+		">/", "> /",
+		"rm -rf /", "mkfs", "dd if=",
+		"curl ", "wget ", "python -c", "perl -e", "ruby -e",
+		"/dev/tcp", "bash -i", "nc -e", "ncat ",
+	} {
+		if strings.Contains(low, bad) {
+			return "", fmt.Errorf("command: rejected unsafe pattern")
+		}
+	}
+	if strings.Contains(cmdline, string(rune(96))) {
+		return "", fmt.Errorf("command: rejected unsafe pattern")
+	}
 	out := outPath(workDir, name, ".dump.gz")
 	cmd := exec.Command("sh", "-c", cmdline)
+	cmd.Dir = workDir
+	cmd.Env = safeCommandEnv()
 	return pipeGzip(cmd, out)
+}
+
+func safeCommandEnv() []string {
+	keep := []string{"PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TMP", "TEMP", "SYSTEMROOT", "WINDIR", "COMSPEC"}
+	var out []string
+	for _, k := range keep {
+		if v := os.Getenv(k); v != "" {
+			out = append(out, k+"="+v)
+		}
+	}
+	return out
 }
 
 func dumpOracle(workDir, name, uri string) (string, error) {
@@ -261,8 +371,10 @@ func pipeGzip(cmd *exec.Cmd, outPath string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
+	// shell out to gzip for portability
 	gzipBin, err := exec.LookPath("gzip")
 	if err != nil {
+		// write raw
 		cmd.Stdout = f
 		if b, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("%v: %s", err, string(b))
