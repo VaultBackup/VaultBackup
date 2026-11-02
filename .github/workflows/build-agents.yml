@@ -23,7 +23,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Need full history / write token for push
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Go
@@ -35,7 +34,6 @@ jobs:
         working-directory: agent
         run: |
           set -euo pipefail
-          mkdir -p ../dist
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.3")
           LDFLAGS="-s -w -X main.version=${VERSION}"
 
@@ -69,4 +67,104 @@ jobs:
           fi
 
           git commit -m "chore(build): update agent binaries [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
+
+  msi:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Windows amd64 agent
+        working-directory: agent
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.3")
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          LDFLAGS="-s -w -X main.version=${VERSION}"
+          GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" \
+            -o packaging/windows/vaultbackup-agent-windows-amd64.exe ./cmd/agent
+          ls -la packaging/windows/
+
+      - name: Install WiX Toolset
+        shell: pwsh
+        run: |
+          choco install wixtoolset --yes --no-progress
+          $wixBin = Get-ChildItem -Path "${env:ProgramFiles(x86)}\WiX Toolset*" -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+          if (-not $wixBin) {
+            throw "WiX Toolset not found after Chocolatey install"
+          }
+          $bin = Join-Path $wixBin.FullName "bin"
+          echo "WIX_BIN=$bin" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "WiX bin: $bin"
+          & (Join-Path $bin "candle.exe") -?
+
+      - name: Ensure icon.ico exists
+        working-directory: agent/packaging/windows
+        shell: pwsh
+        run: |
+          if (Test-Path "icon.ico") {
+            Write-Host "icon.ico already present"
+            exit 0
+          }
+          # Minimal valid 16x16 32-bpp ICO (green shield placeholder) so WiX can link
+          $b64 = @"
+          AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////ACgoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP////8A////AP///wAoKCj/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8oKCj/////AP///wD///8AKCgo/yIiIv8zMzP/MzMz/zMzM/8zMzP/MzMz/zMzM/8zMzP/MzMz/zMzM/8iIiL/KCgo/////wD///8A////ACgoKP8iIiL/MzMz/0ZGRv9GRkb/RkZG/0ZGRv9GRkb/RkZG/0ZGRv8zMzP/IiIi/ygoKP////8A////AP///wAoKCj/IiIi/zMzM/9GRkb/ZmZm/2ZmZv9mZmb/ZmZm/2ZmZv9GRkb/MzMz/yIiIv8oKCj/////AP///wD///8AKCgo/yIiIv8zMzP/RkZG/2ZmZv9mZmb/ZmZm/2ZmZv9mZmb/RkZG/zMzM/8iIiL/KCgo/////wD///8A////ACgoKP8iIiL/MzMz/0ZGRv9mZmb/ZmZm/2ZmZv9mZmb/ZmZm/0ZGRv8zMzP/IiIi/ygoKP////8A////AP///wAoKCj/IiIi/zMzM/9GRkb/RkZG/0ZGRv9GRkb/RkZG/0ZGRv9GRkb/MzMz/yIiIv8oKCj/////AP///wD///8AKCgo/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/KCgo/////wD///8A////ACgoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP////8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A
+          "@
+          $bytes = [Convert]::FromBase64String(($b64 -replace '\s',''))
+          [IO.File]::WriteAllBytes((Join-Path (Get-Location) "icon.ico"), $bytes)
+          Write-Host "Wrote minimal icon.ico ($($bytes.Length) bytes)"
+
+      - name: Build MSI with WiX
+        working-directory: agent/packaging/windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $candle = Join-Path $env:WIX_BIN "candle.exe"
+          $light  = Join-Path $env:WIX_BIN "light.exe"
+          $ver = if ($env:VERSION) { $env:VERSION } else { "1.2.3" }
+          # WiX Product Version must be up to 4 numeric parts (no git hash)
+          if ($ver -notmatch '^\d+(\.\d+){0,3}$') {
+            $ver = "1.2.3"
+          }
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          & $candle -dVersion=$ver -arch x64 -out "out\VaultBackupAgent.wixobj" VaultBackupAgent.wxs
+          if ($LASTEXITCODE -ne 0) { throw "candle failed" }
+          $msiName = "vaultbackup-agent-$ver-x64.msi"
+          & $light -ext WixUIExtension -out "out\$msiName" "out\VaultBackupAgent.wixobj"
+          if ($LASTEXITCODE -ne 0) { throw "light failed" }
+          Copy-Item "out\$msiName" "..\..\..\vaultbackup-agent-windows-amd64.msi" -Force
+          Copy-Item "out\$msiName" "..\..\..\$msiName" -Force
+          Get-ChildItem "..\..\..\*.msi" | Format-Table Name, Length
+
+      - name: Commit and push MSI
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add vaultbackup-agent-windows-amd64.msi vaultbackup-agent-*-x64.msi 2>/dev/null || true
+          # also stage versioned name if present
+          git add *.msi 2>/dev/null || true
+
+          if git diff --cached --quiet; then
+            echo "No MSI changes; skipping commit."
+            exit 0
+          fi
+
+          git commit -m "chore(build): update Windows MSI installer [skip ci]"
           git push origin HEAD:${{ github.ref_name }}
