@@ -90,9 +90,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.3")
+          RAW=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.3")
+          # WiX Product/@Version must be numeric x.x.x.x only
+          if [[ "$RAW" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then
+            VERSION="$RAW"
+          else
+            VERSION="1.2.3"
+          fi
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-          LDFLAGS="-s -w -X main.version=${VERSION}"
+          echo "Using MSI product version: ${VERSION} (raw git: ${RAW})"
+          LDFLAGS="-s -w -X main.version=${RAW}"
           GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" \
             -o packaging/windows/vaultbackup-agent-windows-amd64.exe ./cmd/agent
           ls -la packaging/windows/
@@ -120,11 +127,15 @@ jobs:
             Write-Host "icon.ico already present"
             exit 0
           }
-          # Minimal valid 16x16 32-bpp ICO (green shield placeholder) so WiX can link
-          $b64 = @"
-          AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////ACgoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP////8A////AP///wAoKCj/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8oKCj/////AP///wD///8AKCgo/yIiIv8zMzP/MzMz/zMzM/8zMzP/MzMz/zMzM/8zMzP/MzMz/zMzM/8iIiL/KCgo/////wD///8A////ACgoKP8iIiL/MzMz/0ZGRv9GRkb/RkZG/0ZGRv9GRkb/RkZG/0ZGRv8zMzP/IiIi/ygoKP////8A////AP///wAoKCj/IiIi/zMzM/9GRkb/ZmZm/2ZmZv9mZmb/ZmZm/2ZmZv9GRkb/MzMz/yIiIv8oKCj/////AP///wD///8AKCgo/yIiIv8zMzP/RkZG/2ZmZv9mZmb/ZmZm/2ZmZv9mZmb/RkZG/zMzM/8iIiL/KCgo/////wD///8A////ACgoKP8iIiL/MzMz/0ZGRv9mZmb/ZmZm/2ZmZv9mZmb/ZmZm/0ZGRv8zMzP/IiIi/ygoKP////8A////AP///wAoKCj/IiIi/zMzM/9GRkb/RkZG/0ZGRv9GRkb/RkZG/0ZGRv9GRkb/MzMz/yIiIv8oKCj/////AP///wD///8AKCgo/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/IiIi/yIiIv8iIiL/KCgo/////wD///8A////ACgoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP8oKCj/KCgo/ygoKP////8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A
-          "@
-          $bytes = [Convert]::FromBase64String(($b64 -replace '\s',''))
+          # Minimal valid 1x1 24-bpp ICO so WiX can link when branding icon is absent
+          $bytes = [byte[]](
+            0x00,0x00,0x01,0x00,0x01,0x00,0x01,0x01,0x00,0x00,0x01,0x00,0x18,0x00,
+            0x30,0x00,0x00,0x00,0x16,0x00,0x00,0x00,
+            0x28,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x02,0x00,0x00,0x00,0x01,0x00,0x18,0x00,
+            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+            0x00,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+          )
           [IO.File]::WriteAllBytes((Join-Path (Get-Location) "icon.ico"), $bytes)
           Write-Host "Wrote minimal icon.ico ($($bytes.Length) bytes)"
 
@@ -135,20 +146,28 @@ jobs:
           $ErrorActionPreference = "Stop"
           $candle = Join-Path $env:WIX_BIN "candle.exe"
           $light  = Join-Path $env:WIX_BIN "light.exe"
-          $ver = if ($env:VERSION) { $env:VERSION } else { "1.2.3" }
-          # WiX Product Version must be up to 4 numeric parts (no git hash)
-          if ($ver -notmatch '^\d+(\.\d+){0,3}$') {
+
+          $ver = $env:VERSION
+          if ([string]::IsNullOrWhiteSpace($ver) -or ($ver -notmatch '^\d+(\.\d+){1,3}$')) {
             $ver = "1.2.3"
           }
+          Write-Host "candle -dVersion=$ver"
+
           New-Item -ItemType Directory -Force -Path out | Out-Null
-          & $candle -dVersion=$ver -arch x64 -out "out\VaultBackupAgent.wixobj" VaultBackupAgent.wxs
-          if ($LASTEXITCODE -ne 0) { throw "candle failed" }
+
+          # Quote -dVersion so PowerShell expands $ver and passes one argument to candle
+          $defineVersion = "-dVersion=$ver"
+          & $candle $defineVersion "-arch" "x64" "-out" "out\VaultBackupAgent.wixobj" "VaultBackupAgent.wxs"
+          if ($LASTEXITCODE -ne 0) { throw "candle failed (exit $LASTEXITCODE)" }
+
           $msiName = "vaultbackup-agent-$ver-x64.msi"
-          & $light -ext WixUIExtension -out "out\$msiName" "out\VaultBackupAgent.wixobj"
-          if ($LASTEXITCODE -ne 0) { throw "light failed" }
-          Copy-Item "out\$msiName" "..\..\..\vaultbackup-agent-windows-amd64.msi" -Force
-          Copy-Item "out\$msiName" "..\..\..\$msiName" -Force
-          Get-ChildItem "..\..\..\*.msi" | Format-Table Name, Length
+          & $light "-ext" "WixUIExtension" "-out" "out\$msiName" "out\VaultBackupAgent.wixobj"
+          if ($LASTEXITCODE -ne 0) { throw "light failed (exit $LASTEXITCODE)" }
+
+          $repoRoot = Resolve-Path "..\..\.."
+          Copy-Item "out\$msiName" (Join-Path $repoRoot "vaultbackup-agent-windows-amd64.msi") -Force
+          Copy-Item "out\$msiName" (Join-Path $repoRoot $msiName) -Force
+          Get-ChildItem (Join-Path $repoRoot "*.msi") | Format-Table Name, Length
 
       - name: Commit and push MSI
         shell: bash
@@ -157,9 +176,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add vaultbackup-agent-windows-amd64.msi vaultbackup-agent-*-x64.msi 2>/dev/null || true
-          # also stage versioned name if present
-          git add *.msi 2>/dev/null || true
+          git add vaultbackup-agent-windows-amd64.msi || true
+          git add vaultbackup-agent-*-x64.msi || true
 
           if git diff --cached --quiet; then
             echo "No MSI changes; skipping commit."
