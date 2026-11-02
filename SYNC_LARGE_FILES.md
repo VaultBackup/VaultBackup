@@ -1,31 +1,39 @@
 # Sync status
 
-## On `main` (pushed via API)
-- **Full enhanced agent UI** is embedded in `agent/internal/webui/embed.go` (gzip+base64; decompresses at runtime to the full dashboard).
-- Agent Go tree under `agent/` (cmd, packages, packaging, webui server + icons).
-- Placeholder `worker.js` (replace with the real ~422 KB worker locally).
-- A standalone `vaultbackup-agent-ui-enhanced.html` was attempted; the API truncated it — **prefer the embedded version inside the agent binary**.
+## On `main` (via API)
+- Agent Go source under `agent/`
+- Embedded enhanced agent UI in `agent/internal/webui/embed.go`
+- Config examples: `config.example.yaml`, `agent/packaging/windows/config.example.json`
+- **Placeholder** `worker.js` only (returns HTTP 503)
 
-## Still push locally (too large for Contents API)
+## NOT on GitHub yet — must push locally
 
-| Local artifact | Repo path | Size |
-|----------------|-----------|------|
-| `artifacts/worker.js` | `worker.js` | ~422 KB |
-| `artifacts/vaultbackup-agent-ui-enhanced.html` | optional root copy | ~41 KB |
+| File | Size | Why |
+|------|------|-----|
+| Full `worker.js` | ~415–422 KB | GitHub Contents API / connector cannot accept this payload |
+
+The **live** Worker at https://backup.enadoctemp.workers.dev/ is already the full version.
+GitHub `main/worker.js` is still the placeholder.
+
+### Push the full worker from your machine
 
 ```bash
 git clone git@github.com:VaultBackup/VaultBackup.git
 cd VaultBackup
+
+# Use the full source (project artifacts or the file you exported)
 cp /path/to/artifacts/worker.js .
-# optional:
-# cp /path/to/artifacts/vaultbackup-agent-ui-enhanced.html .
+# or the pasted full worker file
+
 git add worker.js
-git commit -m "feat: full Cloudflare worker"
-git push
+git commit -m "feat: full Cloudflare worker (~422 KB)"
+git push origin main
 ```
 
-After pushing the full worker:
+Optional after push:
 
 ```bash
 npx wrangler deploy
 ```
+
+No other large artifacts are required for source-of-truth on GitHub; agent binaries are published by the Build Agent Binaries workflow.
