@@ -2,15 +2,31 @@
 
 **Version:** 1.2.3
 
+**Downloads:** https://backup.enadoctemp.workers.dev/install  
+**Windows MSI:** https://backup.enadoctemp.workers.dev/download/windows-msi
+
 ## Operating systems
 
 | OS | Build | Service installer | Secrets | Locked files |
 |----|-------|-------------------|---------|--------------|
 | Linux | `GOOS=linux` | `scripts/install-linux.sh` (systemd) | file `0600` | N/A |
-| Windows | `GOOS=windows` | `scripts/install-windows.ps1` (Task Scheduler + restart) | DPAPI | VSS (`use_vss`) |
+| Windows | `GOOS=windows` | **MSI** + `scripts/install-windows.ps1` (Task Scheduler) | DPAPI | VSS (`use_vss`) |
 | macOS | `GOOS=darwin` | `scripts/install-macos.sh` (launchd) | Keychain | N/A |
 
-Same binary behavior: schedule → dump → encrypt → upload.
+Same binary behavior: **schedule → dump → encrypt → upload**.
+
+### Published artifacts (repo root / Worker downloads)
+
+| Artifact | Notes |
+|----------|--------|
+| `vaultbackup-agent-windows-amd64.msi` | WiX MSI (x64) — preferred Windows install |
+| `vaultbackup-agent-1.2.3-x64.msi` | Versioned MSI copy |
+| `vaultbackup-agent-windows-amd64.exe` | Portable Windows x64 |
+| `vaultbackup-agent-windows-arm64.exe` | Portable Windows ARM64 |
+| `vaultbackup-agent-darwin-amd64` / `-arm64` | macOS |
+| `vaultbackup-agent-linux-amd64` / `-arm64` | Linux |
+
+CI: `.github/workflows/build-agents.yml` builds EXEs (Ubuntu) and MSI (Windows + WiX).
 
 ## Status & health
 
@@ -27,6 +43,7 @@ Same binary behavior: schedule → dump → encrypt → upload.
 - Backup history (last 30 runs)
 - Tool presence map
 - Secrets masked on read; never written back if still masked
+- Optional `--webui-password`
 
 ## Databases (`database.type`)
 
@@ -64,6 +81,7 @@ Aliases: `r2`, `b2`, `minio`, `wasabi` → `s3`; `azureblob` → `azure`.
 - `/api/agent/logs` — critical errors + optional info lines
 - `/api/agent/events` — structured `backup_finished` (success/fail + metrics)
 - `/api/agent/config` — sanitized config sync
+- `/api/agent/license` — license / device fingerprint check
 
 ## Safety
 
@@ -76,9 +94,19 @@ Aliases: `r2`, `b2`, `minio`, `wasabi` → `s3`; `azureblob` → `azure`.
 ## Build
 
 ```bash
+cd agent
 make release
 # or:
-GOOS=linux   GOARCH=amd64 go build -o dist/agent-linux-amd64 ./cmd/agent
-GOOS=windows GOARCH=amd64 go build -o dist/agent-windows-amd64.exe ./cmd/agent
-GOOS=darwin  GOARCH=arm64 go build -o dist/agent-darwin-arm64 ./cmd/agent
+GOOS=linux   GOARCH=amd64 go build -o ../vaultbackup-agent-linux-amd64 ./cmd/agent
+GOOS=windows GOARCH=amd64 go build -o ../vaultbackup-agent-windows-amd64.exe ./cmd/agent
+GOOS=darwin  GOARCH=arm64 go build -o ../vaultbackup-agent-darwin-arm64 ./cmd/agent
 ```
+
+Windows MSI (requires WiX Toolset v3 on a Windows machine):
+
+```powershell
+cd agent\packaging\windows
+.\build-msi.ps1 -Version 1.2.3
+```
+
+See also: [INSTALL.md](INSTALL.md) · [RUN.md](RUN.md) · [README.md](README.md)

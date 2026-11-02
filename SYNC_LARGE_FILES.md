@@ -1,39 +1,52 @@
 # Sync status
 
-## On `main` (via API)
-- Agent Go source under `agent/`
-- Embedded enhanced agent UI in `agent/internal/webui/embed.go`
-- Config examples: `config.example.yaml`, `agent/packaging/windows/config.example.json`
-- **Placeholder** `worker.js` only (returns HTTP 503)
+## On `main` (current)
 
-## NOT on GitHub yet — must push locally
+| Item | Status |
+|------|--------|
+| Full `worker.js` | **Present** (~415 KB) — Cloudflare Worker source |
+| Agent Go source `agent/` | Present |
+| Embedded agent Web UI | `agent/internal/webui/embed.go` |
+| Config examples | `config.example.yaml`, `agent/packaging/windows/config.example.json` |
+| Platform agent binaries | Present (CI) |
+| **Windows MSI** | **Present** — `vaultbackup-agent-windows-amd64.msi`, `vaultbackup-agent-1.2.3-x64.msi` |
+| Docs | README, INSTALL, RUN, CAPABILITIES updated for MSI + downloads |
 
-| File | Size | Why |
-|------|------|-----|
-| Full `worker.js` | ~415–422 KB | GitHub Contents API / connector cannot accept this payload |
+## CI
 
-The **live** Worker at https://backup.enadoctemp.workers.dev/ is already the full version.
-GitHub `main/worker.js` is still the placeholder.
+`.github/workflows/build-agents.yml`:
 
-### Push the full worker from your machine
+- Ubuntu: builds all platform binaries, race-safe push
+- Windows: WiX MSI build, race-safe push
 
-```bash
-git clone git@github.com:VaultBackup/VaultBackup.git
-cd VaultBackup
+## Live site
 
-# Use the full source (project artifacts or the file you exported)
-cp /path/to/artifacts/worker.js .
-# or the pasted full worker file
+Public console: https://backup.enadoctemp.workers.dev/  
+Install / downloads: https://backup.enadoctemp.workers.dev/install
 
-git add worker.js
-git commit -m "feat: full Cloudflare worker (~422 KB)"
-git push origin main
-```
-
-Optional after push:
+After changing `worker.js` locally, deploy with:
 
 ```bash
 npx wrangler deploy
 ```
 
-No other large artifacts are required for source-of-truth on GitHub; agent binaries are published by the Build Agent Binaries workflow.
+Worker download routes (after deploying an MSI-aware `worker.js`):
+
+| Route | Artifact |
+|-------|----------|
+| `/download/windows-msi` | `vaultbackup-agent-windows-amd64.msi` |
+| `/download/windows-amd64` | `vaultbackup-agent-windows-amd64.exe` |
+| `/download/windows-arm64` | `vaultbackup-agent-windows-arm64.exe` |
+| `/download/darwin-arm64` | `vaultbackup-agent-darwin-arm64` |
+| `/download/darwin-amd64` | `vaultbackup-agent-darwin-amd64` |
+| `/download/linux-amd64` | `vaultbackup-agent-linux-amd64` |
+| `/download/linux-arm64` | `vaultbackup-agent-linux-arm64` |
+
+Binaries are served via `GH_TOKEN` (private repo read) or R2 objects under `agents/`.
+
+## Optional / low priority
+
+| Item | Notes |
+|------|--------|
+| Standalone `vaultbackup-agent-ui-enhanced.html` | Prefer embedded UI in the agent binary |
+| Branding `icon.ico` in `agent/packaging/windows/` | CI can synthesize a minimal icon if missing; commit a real icon for production MSI |

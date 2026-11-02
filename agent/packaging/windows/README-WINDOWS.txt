@@ -1,52 +1,68 @@
 VaultBackup Agent for Windows
 =============================
 
-Files
------
-  vaultbackup-agent.exe     Agent binary
-  config.example.json       Sample configuration
-  README.txt                This file
+Public downloads
+----------------
+  MSI (recommended):
+    https://backup.enadoctemp.workers.dev/download/windows-msi
+
+  Portable EXE:
+    https://backup.enadoctemp.workers.dev/download/windows-amd64
+
+  Install guide:
+    https://backup.enadoctemp.workers.dev/install
+
+Files (this package / repo)
+---------------------------
+  vaultbackup-agent-windows-amd64.exe   Portable agent
+  vaultbackup-agent-windows-amd64.msi   Windows installer (repo root)
+  vaultbackup-agent-1.2.3-x64.msi       Versioned MSI (repo root)
+  config.example.json                   Sample configuration
+  VaultBackupAgent.wxs                  WiX source
+  build-msi.ps1                         Build MSI on Windows + WiX v3
+  README.txt                            This file
+
+MSI install (recommended)
+-------------------------
+  msiexec /i vaultbackup-agent-windows-amd64.msi
+  msiexec /i vaultbackup-agent-windows-amd64.msi /qn
+  msiexec /i vaultbackup-agent-windows-amd64.msi WEBUIPASSWORD=secret
+
+  Then open:
+    http://127.0.0.1:8787
+
+  Paste your agent token (Dashboard → Desktop Agents → Create token).
 
 Quick start (EXE)
 -----------------
-1. Copy vaultbackup-agent.exe to a folder (e.g. C:\Program Files\VaultBackup Agent\).
-2. Copy config.example.json to config.json and edit token / database / destination.
-3. Run:
+1. Copy vaultbackup-agent-windows-amd64.exe to a folder
+   (e.g. C:\Program Files\VaultBackup Agent\).
+2. Run:
 
-     vaultbackup-agent.exe -config config.json
+     vaultbackup-agent-windows-amd64.exe --webui 127.0.0.1:8787
 
-4. Open the setup UI:
-
-     http://127.0.0.1:8787
-
-5. Paste your agent token (from the VaultBackup dashboard → Desktop Agents).
+3. Open http://127.0.0.1:8787 and complete setup.
 
 HTTPS Web UI (optional)
 -----------------------
-  vaultbackup-agent.exe -config config.json ^
+  vaultbackup-agent-windows-amd64.exe -config config.json ^
     -webui 0.0.0.0:8787 ^
     -webui-password "your-long-password" ^
     -webui-tls-cert C:\certs\ui.crt ^
     -webui-tls-key  C:\certs\ui.key
 
-MSI install
------------
-  msiexec /i vaultbackup-agent-VERSION-x64.msi /qn
+Build MSI from source
+---------------------
+  Prerequisites: Go 1.22+, WiX Toolset v3 (candle + light on PATH)
 
-  Optional properties:
-    WEBUIPASSWORD=...   Local UI password
-    AGENTTOKEN=...      (prefer setting token via UI after install)
+    .\build-msi.ps1 -Version 1.2.3
 
 Uninstall
 ---------
   Settings → Apps → VaultBackup Agent
-  or: msiexec /x vaultbackup-agent-VERSION-x64.msi /qn
+  or: msiexec /x vaultbackup-agent-windows-amd64.msi /qn
 
 Support
 -------
   Dashboard: https://backup.enadoctemp.workers.dev/
-
-Icon
-----
-  icon.ico is embedded in vaultbackup-agent.exe (Windows).
-  The MSI uses the same icon.ico for Add/Remove Programs.
+  Docs: INSTALL.md, RUN.md, CAPABILITIES.md in the repo root
