@@ -8,10 +8,10 @@ on:
       - '.github/workflows/build-agents.yml'
   workflow_dispatch:
 
-# Prevent recursive runs when this workflow commits binaries
+# One run at a time; do not cancel an in-progress build when a new one starts mid-push
 concurrency:
   group: build-agents
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -24,6 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -49,7 +50,10 @@ jobs:
           ls -la ../vaultbackup-agent-*
 
       - name: Commit and push binaries
+        env:
+          BRANCH: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -67,7 +71,23 @@ jobs:
           fi
 
           git commit -m "chore(build): update agent binaries [skip ci]"
-          git push origin HEAD:${{ github.ref_name }}
+
+          # Race-safe: another job (msi) may have pushed while we built
+          for i in 1 2 3 4 5; do
+            git fetch origin "$BRANCH"
+            if git push origin "HEAD:$BRANCH"; then
+              echo "Push succeeded (attempt $i)"
+              exit 0
+            fi
+            echo "Push rejected (attempt $i); rebasing onto origin/$BRANCH..."
+            if ! git pull --rebase origin "$BRANCH"; then
+              echo "Rebase conflict; aborting rebase and retrying after delay"
+              git rebase --abort || true
+            fi
+            sleep $((i * 3))
+          done
+          echo "Failed to push binaries after 5 attempts"
+          exit 1
 
   msi:
     runs-on: windows-latest
@@ -79,6 +99,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -155,7 +176,6 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path out | Out-Null
 
-          # Quote -dVersion so PowerShell expands $ver and passes one argument to candle
           $defineVersion = "-dVersion=$ver"
           & $candle $defineVersion "-arch" "x64" "-out" "out\VaultBackupAgent.wixobj" "VaultBackupAgent.wxs"
           if ($LASTEXITCODE -ne 0) { throw "candle failed (exit $LASTEXITCODE)" }
@@ -171,6 +191,8 @@ jobs:
 
       - name: Commit and push MSI
         shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -185,4 +207,20 @@ jobs:
           fi
 
           git commit -m "chore(build): update Windows MSI installer [skip ci]"
-          git push origin HEAD:${{ github.ref_name }}
+
+          # Race-safe: binary job may have pushed while we built the MSI
+          for i in 1 2 3 4 5; do
+            git fetch origin "$BRANCH"
+            if git push origin "HEAD:$BRANCH"; then
+              echo "Push succeeded (attempt $i)"
+              exit 0
+            fi
+            echo "Push rejected (attempt $i); rebasing onto origin/$BRANCH..."
+            if ! git pull --rebase origin "$BRANCH"; then
+              echo "Rebase conflict; aborting rebase and retrying after delay"
+              git rebase --abort || true
+            fi
+            sleep $((i * 3))
+          done
+          echo "Failed to push MSI after 5 attempts"
+          exit 1
