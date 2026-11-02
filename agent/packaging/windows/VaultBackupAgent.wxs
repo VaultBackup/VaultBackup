@@ -2,13 +2,13 @@
 <!--
   WiX source for VaultBackup Agent MSI (Windows x64).
 
-  Build on a Windows machine with WiX Toolset v3 or v4:
+  Build on a Windows machine with WiX Toolset v3:
 
-    # WiX v3
     candle -dVersion=1.2.3 -arch x64 VaultBackupAgent.wxs
     light  -ext WixUIExtension -out vaultbackup-agent-1.2.3-x64.msi VaultBackupAgent.wixobj
 
     # Or use packaging/windows/build-msi.ps1
+    # CI: .github/workflows/build-agents.yml job "msi"
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product
@@ -20,11 +20,12 @@
       UpgradeCode="B7E4C2A1-9F3D-4E8B-A1C6-2D5E7F90B3A4">
 
     <Package
-        InstallerLocale="1033"
+        InstallerVersion="500"
         Compressed="yes"
         InstallScope="perMachine"
         Description="VaultBackup desktop backup agent"
-        Comments="Encrypted local database backups to your storage" />
+        Comments="Encrypted local database backups to your storage"
+        Manufacturer="VaultBackup" />
 
     <MajorUpgrade
         DowngradeErrorMessage="A newer version of VaultBackup Agent is already installed."
@@ -105,7 +106,7 @@
                   Name="VaultBackup Agent UI"
                   Description="Open local agent setup UI"
                   Target="[System64Folder]cmd.exe"
-                  Arguments="/c start https://127.0.0.1:8787"
+                  Arguments="/c start http://127.0.0.1:8787"
                   WorkingDirectory="INSTALLFOLDER" />
         <Shortcut Id="UninstallProduct"
                   Name="Uninstall VaultBackup Agent"
@@ -121,7 +122,6 @@
       </Component>
     </DirectoryRef>
 
-    <!-- Write optional install-time settings for first run -->
     <DirectoryRef Id="INSTALLFOLDER">
       <Component Id="AgentEnvConfig" Guid="*">
         <RegistryValue Root="HKLM"
@@ -138,7 +138,6 @@
       </Component>
     </DirectoryRef>
 
-    <!-- After install: ensure data dir exists -->
     <CustomAction Id="CreateDataDir"
                   Directory="INSTALLFOLDER"
                   ExeCommand="cmd /c if not exist data mkdir data"
