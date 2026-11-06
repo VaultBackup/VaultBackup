@@ -86,6 +86,11 @@ func main() {
 	srv := webui.New(*webuiAddr, *webuiPass).WithTLS(*webuiTLSCert, *webuiTLSKey)
 	srv.OnRun = func() error { return runBackup("") }
 	log.Printf("Web UI listening on %s://%s", srv.Scheme(), *webuiAddr)
+	if strings.TrimSpace(*webuiPass) == "" {
+		log.Printf("Web UI password not set - OK for loopback only; use -webui-password or WEBUI_PASSWORD if binding on LAN")
+	} else {
+		log.Printf("Web UI basic auth enabled")
+	}
 	if srv.TLSEnabled() {
 		log.Printf("Web UI TLS enabled cert=%s", *webuiTLSCert)
 	}
@@ -179,7 +184,6 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		"event": "backup_finished", "ok": true, "type": bt, "size": res.SizeBytes,
 		"duration": dur.Seconds(), "remote": remote, "name": cfg.Name,
 	})
-	// Local retention for work dir and local destination
 	applyRetention(cfg)
 	return nil
 }
@@ -234,16 +238,12 @@ func statusLoop() {
 	}
 }
 
-// scheduleLoop evaluates primary schedule + optional Jobs[] using live config.
 func scheduleLoop(run func(typeOverride string) error) {
-	// Track last fire per job key to avoid double-fire within the same minute.
 	lastFire := map[string]time.Time{}
 	for {
 		cfg := config.Get()
 		logging.MaybeRotate(cfg.LogFile, cfg.LogMaxMB)
-
 		now := time.Now().UTC()
-		// Build job list: named jobs or single default
 		type jobRun struct {
 			key, name, spec, btype string
 		}
@@ -267,8 +267,6 @@ func scheduleLoop(run func(typeOverride string) error) {
 		} else {
 			jobs = append(jobs, jobRun{key: "default", name: cfg.Name, spec: cfg.Schedule, btype: ""})
 		}
-
-		// Find soonest next wake
 		wake := now.Add(time.Hour)
 		for _, j := range jobs {
 			spec, err := schedule.Parse(j.spec)
@@ -282,7 +280,6 @@ func scheduleLoop(run func(typeOverride string) error) {
 				if wait < 0 {
 					wait = 0
 				}
-				// If due within 30s and not fired this minute, run
 				lf := lastFire[j.key]
 				sameMin := !lf.IsZero() && lf.Truncate(time.Minute).Equal(now.Truncate(time.Minute))
 				if wait <= 30*time.Second && !sameMin {
@@ -298,13 +295,11 @@ func scheduleLoop(run func(typeOverride string) error) {
 				}
 			}
 		}
-
 		sleep := time.Until(wake)
 		if sleep < 5*time.Second {
 			sleep = 5 * time.Second
 		}
 		if sleep > 5*time.Minute {
-			// Cap sleep so config/schedule edits apply reasonably soon
 			sleep = 5 * time.Minute
 		}
 		log.Printf("schedule: sleeping %s", sleep.Round(time.Second))
@@ -333,5 +328,5 @@ func runRestore(configPath, src, dst string) {
 	if err := crypto.DecryptFile(src, dst, key); err != nil {
 		log.Fatalf("decrypt: %v", err)
 	}
-	log.Printf("decrypted → %s", dst)
+	log.Printf("decrypted -> %s", dst)
 }
