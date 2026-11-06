@@ -23,35 +23,30 @@ import (
 type Server struct {
 	Addr        string
 	Password    string
-	TLSCertFile string // PEM cert path; with TLSKeyFile enables HTTPS
-	TLSKeyFile  string // PEM key path
+	TLSCertFile string
+	TLSKeyFile  string
 	OnRun       func() error
 	mu          sync.Mutex
 	lastErr     string
-	// auth rate-limit (per process; localhost UI)
-	authMu    sync.Mutex
-	authFails int
-	authBlock time.Time
+	authMu      sync.Mutex
+	authFails   int
+	authBlock   time.Time
 }
 
-// New creates a web UI server.
 func New(addr, password string) *Server {
 	return &Server{Addr: addr, Password: password}
 }
 
-// WithTLS sets PEM certificate and key paths for HTTPS.
 func (s *Server) WithTLS(certFile, keyFile string) *Server {
 	s.TLSCertFile = strings.TrimSpace(certFile)
 	s.TLSKeyFile = strings.TrimSpace(keyFile)
 	return s
 }
 
-// TLSEnabled reports whether HTTPS will be used.
 func (s *Server) TLSEnabled() bool {
 	return s.TLSCertFile != "" && s.TLSKeyFile != ""
 }
 
-// Scheme returns "https" or "http".
 func (s *Server) Scheme() string {
 	if s.TLSEnabled() {
 		return "https"
@@ -59,8 +54,6 @@ func (s *Server) Scheme() string {
 	return "http"
 }
 
-// Start listens and serves. Blocks.
-// When TLSCertFile and TLSKeyFile are set, serves HTTPS with the client-supplied cert.
 func (s *Server) Start() error {
 	if err := s.validateBind(); err != nil {
 		return err
@@ -114,11 +107,9 @@ func (s *Server) validateTLS() error {
 	return nil
 }
 
-// validateBind refuses non-loopback binds without a UI password (LAN exposure risk).
 func (s *Server) validateBind() error {
 	host, _, err := net.SplitHostPort(s.Addr)
 	if err != nil {
-		// addr may be ":8787"
 		host = s.Addr
 		if strings.HasPrefix(host, ":") {
 			host = "0.0.0.0"
@@ -147,10 +138,10 @@ func (s *Server) secureHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'self'")
-		// Cap JSON bodies on API writes
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
 		if r.Method == http.MethodPost || r.Method == http.MethodPut {
-			r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -158,12 +149,9 @@ func (s *Server) secureHeaders(next http.Handler) http.Handler {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Block write APIs that look like cross-site requests from foreign origins.
 		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete {
 			if origin := r.Header.Get("Origin"); origin != "" {
-				// Allow only same-host or empty/null-like local tooling.
-				host := r.Host
-				if !originAllowed(origin, host) {
+				if !originAllowed(origin, r.Host) {
 					http.Error(w, "origin not allowed", http.StatusForbidden)
 					return
 				}
@@ -215,13 +203,11 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 func originAllowed(origin, host string) bool {
 	origin = strings.TrimSpace(origin)
 	if origin == "null" {
-		return true // some local file/dev tools
+		return true
 	}
-	// Accept http://127.0.0.1:8787 style matching request Host
 	if strings.HasSuffix(origin, "://"+host) || strings.HasSuffix(origin, "://"+host+"/") {
 		return true
 	}
-	// localhost vs 127.0.0.1 equivalence for local UI
 	lo := strings.ToLower(origin)
 	if strings.Contains(lo, "://127.0.0.1") || strings.Contains(lo, "://localhost") || strings.Contains(lo, "://[::1]") {
 		h := strings.ToLower(host)
@@ -237,18 +223,36 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// Nonce-based CSP: blocks injected scripts without the nonce (XSS mitigation).
+	nonce := newCSPNonce()
+	html := applyCSPNonce(EmbeddedUI, nonce)
+	csp := strings.Join([]string{
+		"default-src 'none'",
+		"script-src 'nonce-" + nonce + "'",
+		"style-src 'nonce-" + nonce + "'",
+		"img-src 'self' data:",
+		"font-src 'none'",
+		"connect-src 'self'",
+		"base-uri 'none'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+		"object-src 'none'",
+	}, "; ")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write([]byte(EmbeddedUI))
+	w.Header().Set("Content-Security-Policy", csp)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+	_, _ = w.Write([]byte(html))
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		cfg := config.Get()
-		writeJSON(w, map[string]any{
-			"config": config.Sanitized(cfg),
-		})
+		writeJSON(w, map[string]any{"config": config.Sanitized(cfg)})
 	case http.MethodPost:
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -261,11 +265,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, 500, "save failed: "+err.Error())
 			return
 		}
-		writeJSON(w, map[string]any{
-			"ok":       true,
-			"complete": config.Complete(cfg),
-			"config":   config.Sanitized(cfg),
-		})
+		writeJSON(w, map[string]any{"ok": true, "complete": config.Complete(cfg), "config": config.Sanitized(cfg)})
 	default:
 		writeErr(w, 405, "method not allowed")
 	}
@@ -281,12 +281,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	lastErr := s.lastErr
 	s.mu.Unlock()
 	writeJSON(w, map[string]any{
-		"host":          host,
-		"database":      db,
-		"complete":      config.Complete(cfg),
-		"licenseOk":     ok && lic.OK,
-		"licenseReason": first(reason, lic.Reason),
-		"lastError":     lastErr,
+		"host": host, "database": db, "complete": config.Complete(cfg),
+		"licenseOk": ok && lic.OK, "licenseReason": first(reason, lic.Reason), "lastError": lastErr,
 	})
 }
 
@@ -298,21 +294,10 @@ func (s *Server) handleTestLicense(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
 	st, err := license.Check(cfg)
 	if err != nil && !st.Allowed {
-		writeJSON(w, map[string]any{
-			"ok":      false,
-			"allowed": false,
-			"error":   err.Error(),
-			"reason":  st.Reason,
-		})
+		writeJSON(w, map[string]any{"ok": false, "allowed": false, "error": err.Error(), "reason": st.Reason})
 		return
 	}
-	writeJSON(w, map[string]any{
-		"ok":      st.OK,
-		"allowed": st.Allowed,
-		"plan":    st.Plan,
-		"agentId": st.AgentID,
-		"reason":  st.Reason,
-	})
+	writeJSON(w, map[string]any{"ok": st.OK, "allowed": st.Allowed, "plan": st.Plan, "agentId": st.AgentID, "reason": st.Reason})
 }
 
 func (s *Server) handleRunOnce(w http.ResponseWriter, r *http.Request) {
@@ -336,18 +321,11 @@ func (s *Server) handleRunOnce(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	list := history.List(30)
-	// shape for UI
 	out := make([]map[string]any, 0, len(list))
 	for _, e := range list {
 		out = append(out, map[string]any{
-			"started":  e.Started.Format(time.RFC3339),
-			"status":   e.Status,
-			"size":     e.SizeBytes,
-			"message":  e.Message,
-			"error":    e.Error,
-			"path":     e.Path,
-			"type":     e.Type,
-			"duration": e.Duration,
+			"started": e.Started.Format(time.RFC3339), "status": e.Status, "size": e.SizeBytes,
+			"message": e.Message, "error": e.Error, "path": e.Path, "type": e.Type, "duration": e.Duration,
 		})
 	}
 	writeJSON(w, map[string]any{"history": out})
@@ -364,7 +342,6 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"log": "(no log yet)"})
 		return
 	}
-	// tail ~32KB
 	if len(data) > 32*1024 {
 		data = data[len(data)-32*1024:]
 	}
@@ -462,7 +439,7 @@ func applyUIBody(cfg *config.Config, body map[string]any) {
 }
 
 func containsMask(s string) bool {
-	return strings.Contains(s, "••••") || strings.Contains(s, "***")
+	return strings.Contains(s, "***")
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -483,7 +460,6 @@ func first(a, b string) string {
 	return b
 }
 
-// LocalIPs returns non-loopback IPs (for LAN bind hints).
 func LocalIPs() []string {
 	var out []string
 	ifaces, err := net.Interfaces()
