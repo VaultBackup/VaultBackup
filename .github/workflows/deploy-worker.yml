@@ -6,6 +6,7 @@ on:
     paths:
       - "worker.js"
       - "wrangler.toml"
+      - "scripts/ensure-agent-msi-route.mjs"
       - ".github/workflows/deploy-worker.yml"
   workflow_dispatch:
 
@@ -22,17 +23,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Ensure /download/windows-msi route
+        run: node scripts/ensure-agent-msi-route.mjs worker.js
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           command: deploy
-          # wrangler.toml at repo root (name/main/triggers)
 
       - name: Summary
         run: |
           echo "### Worker deploy" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Account: (CF_ACCOUNT_ID secret)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Config: wrangler.toml" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Live: https://backup.enadoctemp.workers.dev/" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Patched windows-msi download route if missing" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Live: https://backup.enadoctemp.workers.dev/download/windows-msi" >> "$GITHUB_STEP_SUMMARY"
