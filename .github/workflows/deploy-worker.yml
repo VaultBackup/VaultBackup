@@ -8,6 +8,7 @@ on:
       - "wrangler.toml"
       - "scripts/ensure-agent-msi-route.mjs"
       - "scripts/embed-public-docs.mjs"
+      - "scripts/enhance-public-seo.mjs"
       - ".github/workflows/deploy-worker.yml"
   workflow_dispatch:
 
@@ -24,11 +25,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure /download/windows-msi route + install MSI UX
+      - name: Ensure /download/windows-msi + install MSI UX
         run: node scripts/ensure-agent-msi-route.mjs worker.js
 
       - name: Embed public product docs (/docs)
         run: node scripts/embed-public-docs.mjs worker.js
+
+      - name: SEO / AEO / GEO / XEO enhancements
+        run: node scripts/enhance-public-seo.mjs worker.js
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -40,7 +44,6 @@ jobs:
       - name: Summary
         run: |
           echo "### Worker deploy" >> "$GITHUB_STEP_SUMMARY"
-          echo "- MSI route + install UX patch" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Public docs at /docs" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Docs: /docs /docs/product /docs/security /docs/storage /docs/agent" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SEO: sitemap, robots, llms.txt, JSON-LD" >> "$GITHUB_STEP_SUMMARY"
           echo "- https://backup.enadoctemp.workers.dev/docs" >> "$GITHUB_STEP_SUMMARY"
-          echo "- https://backup.enadoctemp.workers.dev/install" >> "$GITHUB_STEP_SUMMARY"
