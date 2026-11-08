@@ -20,36 +20,32 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Ensure /download/windows-msi + install MSI UX
+      - name: MSI route + install UX
         run: node scripts/ensure-agent-msi-route.mjs worker.js
 
-      - name: Embed public product docs (/docs)
+      - name: Public docs (incl. restore, privacy, support)
         run: node scripts/embed-public-docs.mjs worker.js
 
-      - name: SEO / AEO / GEO / XEO enhancements
+      - name: SEO enhancements
         run: node scripts/enhance-public-seo.mjs worker.js
 
-      - name: Unified favicon + humanize copy
+      - name: Favicon + humanize
         run: node scripts/unify-favicon-humanize.mjs worker.js
 
-      - name: Link landing page to docs and install
+      - name: Landing nav links
         run: node scripts/link-landing-nav.mjs worker.js
 
-      - name: Syntax check worker.js
+      - name: Go-live hardening (registration lock)
+        run: node scripts/go-live-hardening.mjs worker.js
+
+      - name: Syntax check
         run: node --check worker.js
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           command: deploy
-
-      - name: Summary
-        run: |
-          echo "### Worker deploy" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Landing linked to /install /docs /docs/*" >> "$GITHUB_STEP_SUMMARY"
-          echo "- https://backup.enadoctemp.workers.dev/" >> "$GITHUB_STEP_SUMMARY"
