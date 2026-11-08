@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Inject public /docs pages (product + restore + privacy + support). */
+/** Inject public /docs pages including About. */
 import fs from "fs";
 
 const file = process.argv[2] || "worker.js";
@@ -61,25 +61,86 @@ footer{max-width:48rem;margin:0 auto;padding:1rem 1.25rem 2rem;color:var(--muted
 </style></head><body>
 <header><div><strong>VaultBackup</strong> <span class="muted">Docs</span></div>
 <div class="links">
-<a href="/">Home</a><a href="/install">Install</a><a href="/docs">Docs</a>
-<a href="/docs/product">Product</a><a href="/docs/storage">Storage</a>
-<a href="/docs/security">Security</a><a href="/docs/restore">Restore</a>
+<a href="/">Home</a>
+<a href="/docs/about">About</a>
+<a href="/install">Install</a>
+<a href="/docs">Docs</a>
+<a href="/docs/product">Product</a>
+<a href="/docs/storage">Storage</a>
+<a href="/docs/security">Security</a>
+<a href="/docs/restore">Restore</a>
 <a href="/docs/support">Support</a>
 </div></header>
 <main>${body}</main>
-<footer>VaultBackup. Encrypted backups to your own storage. <a href="/install">Install</a> · <a href="/docs/privacy">Privacy</a></footer>
+<footer>VaultBackup. Encrypted backups to your own storage. <a href="/docs/about">About</a> · <a href="/docs/privacy">Privacy</a> · <a href="/install">Install</a></footer>
 </body></html>`;
 }
 
+const aboutLd = {
+  "@context": "https://schema.org",
+  "@type": "AboutPage",
+  name: "About VaultBackup",
+  url: "https://backup.enadoctemp.workers.dev/docs/about",
+  description: "VaultBackup helps SMBs and accounting firms run encrypted database backups to their own storage.",
+};
+
 const pages = {
+  "/docs/about": page(
+    "About",
+    "About VaultBackup: encrypted database backups for SMBs and accounting firms, stored in your own S3, B2, Wasabi, R2, or local disk.",
+    "/docs/about",
+    `<h1>About VaultBackup</h1>
+<p class="lead">We help small businesses and accounting firms keep database backups simple, affordable, and under their control.</p>
+
+<div class="card">
+<h2>What we believe</h2>
+<ul>
+<li><strong>Your storage, your data.</strong> Backups should land in a bucket or folder you own (S3, Backblaze B2, Wasabi, Cloudflare R2, Azure, WebDAV, or local disk), not only in a vendor vault you cannot leave.</li>
+<li><strong>Office databases matter.</strong> Many firms run SQL Server or MySQL on a PC or LAN. A desktop agent can reach those hosts; a pure cloud worker cannot.</li>
+<li><strong>Cost should stay predictable.</strong> You pay for the storage you already use. The control plane stays lightweight.</li>
+</ul>
+</div>
+
+<div class="card">
+<h2>How it works</h2>
+<ol>
+<li>Sign in and create an <strong>agent token</strong>.</li>
+<li>Install the <a href="/install">desktop agent</a> (Windows MSI recommended).</li>
+<li>Point it at your database and your storage, then schedule or run a backup.</li>
+</ol>
+<p class="muted">Optional: use the web console for small public cloud databases (size limits apply).</p>
+</div>
+
+<div class="card">
+<h2>Who it is for</h2>
+<ul>
+<li>Accounting and bookkeeping firms</li>
+<li>SMBs with on-prem or office databases</li>
+<li>Teams that need encryption and clear restore steps</li>
+</ul>
+<p>
+<a class="btn" href="/install">Install the agent</a>
+<a class="btn secondary" href="/docs/product">Product overview</a>
+<a class="btn secondary" href="/docs/security">Security</a>
+</p>
+</div>
+
+<div class="card">
+<h2>Contact</h2>
+<p class="muted">For license or account help, use the contact path from the person who issued your agent token, or see <a href="/docs/support">Support</a>.</p>
+</div>`,
+    [aboutLd]
+  ),
+
   "/docs": page("Documentation", "VaultBackup guides for install, storage, security, restore, and support.", "/docs",
     `<h1>Documentation</h1>
 <p class="lead">Everything you need to back up office databases to storage you control.</p>
 <div class="card"><h2>Start here</h2>
 <ul>
+<li><a href="/docs/about"><strong>About VaultBackup</strong></a></li>
 <li><a href="/install"><strong>Install the desktop agent</strong></a></li>
 <li><a href="/docs/product"><strong>Product overview</strong></a></li>
-<li><a href="/docs/storage"><strong>Own storage (B2, Wasabi, R2, S3)</strong></a></li>
+<li><a href="/docs/storage"><strong>Own storage</strong></a></li>
 <li><a href="/docs/security"><strong>Security</strong></a></li>
 <li><a href="/docs/restore"><strong>Restore a backup</strong></a></li>
 <li><a href="/docs/support"><strong>Support</strong></a></li>
@@ -94,7 +155,7 @@ const pages = {
 <div class="card"><h2>Who it is for</h2>
 <ul><li>Accounting firms with SQL Server or local MySQL</li>
 <li>SMBs that want reliable backups without large storage markups</li></ul>
-<p><a class="btn" href="/install">Install agent</a></p></div>`),
+<p><a class="btn" href="/install">Install agent</a> <a class="btn secondary" href="/docs/about">About</a></p></div>`),
 
   "/docs/security": page("Security", "Sealed agent config, optional backup encryption, authenticated APIs.", "/docs/security",
     `<h1>Security</h1>
@@ -133,49 +194,33 @@ const pages = {
 <ol>
 <li>Find the backup object in your bucket or local folder (agent history shows the path).</li>
 <li>Download the file to a secure machine.</li>
-<li>If the file ends with <code>.vbenc</code>, decrypt with the agent:<br>
-<pre>vaultbackup-agent --restore backup.vbenc --restore-out backup.dump</pre>
-Use the same <code>agent.key</code> / encryption settings that created the backup.</li>
-<li>Restore into the database with the native tool:
-<ul>
-<li>PostgreSQL: <code>pg_restore</code> or <code>psql</code></li>
-<li>MySQL: <code>mysql</code> client</li>
-<li>SQL Server: restore the <code>.bak</code> via SSMS or <code>sqlcmd</code></li>
-<li>MongoDB: <code>mongorestore</code></li>
-</ul></li>
-<li>Verify application login and a few critical records.</li>
+<li>If the file ends with <code>.vbenc</code>, decrypt with the agent.</li>
+<li>Restore with the native database tool (pg_restore, mysql, SSMS, mongorestore).</li>
+<li>Verify the application and a few critical records.</li>
 </ol>
-<p class="muted">Tip: run a restore drill quarterly and note who owns the storage credentials.</p>
 <p><a class="btn secondary" href="/docs/support">Support</a></p></div>`),
 
   "/docs/support": page("Support", "How to get help when a VaultBackup job fails.", "/docs/support",
     `<h1>Support</h1>
 <div class="card"><h2>When a backup fails</h2>
 <ol>
-<li>Open the agent UI at http://127.0.0.1:8787 and check History and Logs.</li>
-<li>Confirm the machine can reach your storage (S3/B2/R2) and the database.</li>
-<li>Confirm the agent still shows License OK (online at least every 72 hours).</li>
-<li>Sign in at the <a href="/">dashboard</a> and check Desktop Agents status.</li>
+<li>Check agent History and Logs at http://127.0.0.1:8787</li>
+<li>Confirm storage and database connectivity</li>
+<li>Confirm License OK (online at least every 72 hours)</li>
+<li>Check Desktop Agents status on the <a href="/">dashboard</a></li>
 </ol>
-<p class="muted">Email alerts: set <code>RESEND_API_KEY</code> and <code>MAIL_FROM</code> on the Worker so critical agent failures can notify the account owner.</p>
-<p>For account or license help, contact the operator who issued your agent token.</p></div>`),
+<p class="muted">See also <a href="/docs/about">About</a> and <a href="/docs/privacy">Privacy</a>.</p></div>`),
 
   "/docs/privacy": page("Privacy", "How VaultBackup handles account and backup data.", "/docs/privacy",
     `<h1>Privacy</h1>
 <div class="card"><h2>What we store</h2>
 <ul>
-<li><strong>Account</strong>: email and password hash for console login</li>
-<li><strong>Agent tokens</strong>: hashed/stored for license checks and heartbeats</li>
-<li><strong>Status metadata</strong>: last seen, backup success/failure summaries</li>
+<li>Account email and password hash</li>
+<li>Agent token metadata and heartbeats</li>
+<li>Backup success/failure summaries</li>
 </ul>
-<p><strong>Backup file contents</strong> go to <em>your</em> storage (S3, B2, disk, etc.), not to a VaultBackup managed vault, unless you explicitly use a Worker upload path.</p>
-<h2>Your controls</h2>
-<ul>
-<li>Use your own bucket and encryption keys</li>
-<li>Revoke agent tokens from the dashboard</li>
-<li>Request account deletion via your operator / support contact</li>
-</ul>
-<p class="muted">This page is a practical summary for SMBs. Update it with your legal entity details before wide public launch.</p></div>`),
+<p>Backup <em>file contents</em> go to your storage unless you use an explicit Worker upload path.</p>
+<p><a href="/docs/about">About VaultBackup</a></p></div>`),
 };
 
 const markerStart = "/* __PUBLIC_DOCS_START__ */";
@@ -203,7 +248,6 @@ if (s.includes(markerStart) && s.includes(markerEnd)) {
   console.log("Replaced PUBLIC_DOCS");
 } else if (s.includes("const AGENT_BINARIES")) {
   s = s.replace("const AGENT_BINARIES", block + "\nconst AGENT_BINARIES");
-  console.log("Inserted PUBLIC_DOCS");
 } else {
   s = block + "\n" + s;
 }
