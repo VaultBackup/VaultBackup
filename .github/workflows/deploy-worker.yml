@@ -35,6 +35,9 @@ jobs:
       - name: Unified favicon + humanize copy
         run: node scripts/unify-favicon-humanize.mjs worker.js
 
+      - name: Link landing page to docs and install
+        run: node scripts/link-landing-nav.mjs worker.js
+
       - name: Syntax check worker.js
         run: node --check worker.js
 
@@ -48,5 +51,5 @@ jobs:
       - name: Summary
         run: |
           echo "### Worker deploy" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Favicon: /icon.svg and /favicon.ico" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Docs + install share the same icon" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Landing linked to /install /docs /docs/*" >> "$GITHUB_STEP_SUMMARY"
+          echo "- https://backup.enadoctemp.workers.dev/" >> "$GITHUB_STEP_SUMMARY"
