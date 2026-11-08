@@ -57,20 +57,18 @@ func SaveKeyProtected(path string, key []byte) error {
 	return nil
 }
 
-// EncryptFile encrypts src → dst using AES-256-GCM (format VBK2).
+// EncryptFile encrypts src to dst using AES-256-GCM (format VBK2).
 func EncryptFile(src, dst string, key []byte) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return err
@@ -83,67 +81,55 @@ func EncryptFile(src, dst string, key []byte) error {
 	if _, err := rand.Read(nonce); err != nil {
 		return err
 	}
-
-	// header: magic(4) + nonce(12)
 	if _, err := out.Write([]byte(magicV2)); err != nil {
 		return err
 	}
 	if _, err := out.Write(nonce); err != nil {
 		return err
 	}
-
-	// stream in chunks
 	buf := make([]byte, 64*1024)
 	var seq uint64
 	for {
-		n, rerr := in.Read(buf)
+		n, err := in.Read(buf)
 		if n > 0 {
-			// prepend seq to AAD for ordering
 			aad := make([]byte, 8)
 			binary.BigEndian.PutUint64(aad, seq)
 			ct := gcm.Seal(nil, nonceFor(nonce, seq), buf[:n], aad)
-			// length-prefix ciphertext
-			var lenBuf [4]byte
-			binary.BigEndian.PutUint32(lenBuf[:], uint32(len(ct)))
-			if _, err := out.Write(lenBuf[:]); err != nil {
-				return err
+			lenBuf := make([]byte, 4)
+			binary.BigEndian.PutUint32(lenBuf, uint32(len(ct)))
+			if _, werr := out.Write(lenBuf); werr != nil {
+				return werr
 			}
-			if _, err := out.Write(ct); err != nil {
-				return err
+			if _, werr := out.Write(ct); werr != nil {
+				return werr
 			}
 			seq++
 		}
-		if rerr == io.EOF {
+		if err == io.EOF {
 			break
 		}
-		if rerr != nil {
-			return rerr
+		if err != nil {
+			return err
 		}
 	}
-	return out.Close()
+	return nil
 }
 
-// DecryptFile decrypts a VBK1/VBK2 file.
+// DecryptFile decrypts a VBK2 file (or legacy v1) to dst.
 func DecryptFile(src, dst string, key []byte) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-
-	hdr := make([]byte, 4)
-	if _, err := io.ReadFull(in, hdr); err != nil {
+	magic := make([]byte, 4)
+	if _, err := io.ReadFull(in, magic); err != nil {
 		return err
 	}
-	switch string(hdr) {
-	case magicV2:
-		return decryptV2(in, dst, key)
-	default:
-		return decryptV1(src, dst, key) // legacy whole-file GCM
+	if string(magic) != magicV2 {
+		_ = in.Close()
+		return decryptV1(src, dst, key)
 	}
-}
-
-func decryptV2(in *os.File, dst string, key []byte) error {
 	nonce := make([]byte, nonceSize)
 	if _, err := io.ReadFull(in, nonce); err != nil {
 		return err
@@ -161,7 +147,6 @@ func decryptV2(in *os.File, dst string, key []byte) error {
 		return err
 	}
 	defer out.Close()
-
 	var seq uint64
 	for {
 		var lenBuf [4]byte
@@ -221,11 +206,51 @@ func decryptV1(src, dst string, key []byte) error {
 func nonceFor(base []byte, seq uint64) []byte {
 	n := make([]byte, nonceSize)
 	copy(n, base)
-	// XOR seq into last 8 bytes
 	for i := 0; i < 8; i++ {
 		n[nonceSize-1-i] ^= byte(seq >> (8 * i))
 	}
 	return n
+}
+
+// SealBytes encrypts plaintext with AES-256-GCM. Returns nonce||ciphertext||tag.
+func SealBytes(key, plaintext []byte) ([]byte, error) {
+	if len(key) < 32 {
+		return nil, errors.New("key must be 32 bytes")
+	}
+	block, err := aes.NewCipher(key[:32])
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, nonceSize)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+	out := gcm.Seal(nonce, nonce, plaintext, []byte("vaultbackup-config-v1"))
+	return out, nil
+}
+
+// OpenBytes decrypts output of SealBytes.
+func OpenBytes(key, sealed []byte) ([]byte, error) {
+	if len(key) < 32 {
+		return nil, errors.New("key must be 32 bytes")
+	}
+	if len(sealed) < nonceSize+16 {
+		return nil, errors.New("sealed blob too short")
+	}
+	block, err := aes.NewCipher(key[:32])
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce, ct := sealed[:nonceSize], sealed[nonceSize:]
+	return gcm.Open(nil, nonce, ct, []byte("vaultbackup-config-v1"))
 }
 
 // FileSHA256 returns hex SHA-256 of a file.
