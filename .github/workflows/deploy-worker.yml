@@ -1,0 +1,38 @@
+name: Deploy Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker.js"
+      - "wrangler.toml"
+      - ".github/workflows/deploy-worker.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: deploy
+          # wrangler.toml at repo root (name/main/triggers)
+
+      - name: Summary
+        run: |
+          echo "### Worker deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Account: (CF_ACCOUNT_ID secret)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Config: wrangler.toml" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Live: https://backup.enadoctemp.workers.dev/" >> "$GITHUB_STEP_SUMMARY"

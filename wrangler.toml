@@ -1,0 +1,25 @@
+# Cloudflare Worker — https://backup.enadoctemp.workers.dev/
+# Deploy: npx wrangler deploy
+# CI secrets: CF_API_TOKEN, CF_ACCOUNT_ID
+#
+# If deploy fails with "worker name" errors, set `name` to the exact script name
+# shown in Cloudflare Dashboard → Workers.
+#
+# KV: keep binding name backup_kv. Set id to your namespace id from
+# Dashboard → Workers → KV (or: wrangler kv namespace list).
+# Until id is set, manage the KV binding only in the Cloudflare UI and
+# comment out the [[kv_namespaces]] block so deploy does not detach it.
+
+name = "backup"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# Automatic backups (every 5 minutes)
+[triggers]
+crons = [ "0,5,10,15,20,25,30,35,40,45,50,55 * * * *" ]
+
+# Uncomment and set id after you copy the KV namespace id from the dashboard:
+# [[kv_namespaces]]
+# binding = "backup_kv"
+# id = "YOUR_KV_NAMESPACE_ID"
