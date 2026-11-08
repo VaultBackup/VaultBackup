@@ -13,14 +13,13 @@ Inexpensive encrypted **database backups** for SMBs and accounting firms — to 
 
 | Path | Purpose |
 |------|---------|
-| `worker.js` | Full Cloudflare Worker (console, API, scheduler, agent license) |
+| `worker.js` | Cloudflare Worker (console, API, scheduler, agent license) |
 | `agent/` | Go desktop agent source |
-| `vaultbackup-agent-*.exe` / platform binaries | CI-built agent binaries |
-| `vaultbackup-agent-windows-amd64.msi` | Windows installer (MSI) |
-| `vaultbackup-agent-1.2.3-x64.msi` | Versioned MSI copy |
-| `.github/workflows/build-agents.yml` | Builds binaries + MSI on `agent/**` changes |
-| `config.example.yaml` | Agent config template |
-| `CAPABILITIES.md` / `RUN.md` / `INSTALL.md` | Operator docs |
+| `vaultbackup-agent-*` | CI-built binaries (all platforms + MSI) |
+| `.github/workflows/build-agents.yml` | Multi-platform + MSI build |
+| `docs/` | Product, security, storage, agent guides |
+| `INSTALL.md` / `RUN.md` / `CAPABILITIES.md` | End-user and operator docs |
+| `MINDMAP.md` | Architecture mindmap index |
 
 ---
 
@@ -36,17 +35,6 @@ Inexpensive encrypted **database backups** for SMBs and accounting firms — to 
 | Linux x64 | https://backup.enadoctemp.workers.dev/download/linux-amd64 |
 | Linux ARM64 | https://backup.enadoctemp.workers.dev/download/linux-arm64 |
 
-Full guide: [INSTALL.md](INSTALL.md) · [RUN.md](RUN.md) · [CAPABILITIES.md](CAPABILITIES.md)
-
-### Windows MSI
-
-```text
-msiexec /i vaultbackup-agent-windows-amd64.msi
-# optional: msiexec /i vaultbackup-agent-windows-amd64.msi WEBUIPASSWORD=secret
-```
-
-Then open `http://127.0.0.1:8787`, paste the agent token, choose database and storage.
-
 ---
 
 ## Quick start (end user)
@@ -54,38 +42,35 @@ Then open `http://127.0.0.1:8787`, paste the agent token, choose database and st
 1. Sign in at https://backup.enadoctemp.workers.dev/
 2. **Desktop Agents** → **Create token** (copy once)
 3. Download from https://backup.enadoctemp.workers.dev/install
-4. Run the agent Web UI (`127.0.0.1:8787`), paste the token, save, run a test backup
+4. Open agent UI `http://127.0.0.1:8787` → paste token → database + storage → Save → test backup
 
-License server is built into the agent: `https://backup.enadoctemp.workers.dev` (72-hour offline grace).
+License server is built into the agent. Config **secrets are sealed at rest** (see [docs/SECURITY.md](docs/SECURITY.md)).
 
 ---
 
-## Operator: public downloads
+## Documentation
 
-The Worker serves binaries from this private repo (GitHub Contents API) or from R2:
-
-```bash
-wrangler secret put GH_TOKEN   # GitHub token with Contents: Read on this repo
-# optional vars: GH_OWNER, GH_REPO, GH_BRANCH
-```
-
-Or upload under R2 key prefix `agents/`:
-
-- `agents/vaultbackup-agent-windows-amd64.exe`
-- `agents/vaultbackup-agent-windows-amd64.msi`
-- `agents/vaultbackup-agent-1.2.3-x64.msi`
-- …same names as repo root binaries
+| Doc | Content |
+|-----|---------|
+| [docs/README.md](docs/README.md) | **Docs index** |
+| [docs/PRODUCT.md](docs/PRODUCT.md) | Product positioning |
+| [INSTALL.md](INSTALL.md) | Install all platforms |
+| [RUN.md](RUN.md) | Flags, services, offline license |
+| [CAPABILITIES.md](CAPABILITIES.md) | Engines, destinations, safety |
+| [docs/AGENT.md](docs/AGENT.md) | Agent config & UI |
+| [docs/STORAGE.md](docs/STORAGE.md) | BYO storage presets |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security & sealed config |
+| [docs/MINDMAP.md](docs/MINDMAP.md) | Architecture mindmap |
 
 ---
 
 ## Cloudflare Worker
 
 ```bash
-# wrangler.toml: main = "worker.js"
 npx wrangler deploy
 ```
 
-Requires KV (`backup_kv`), `ENCRYPTION_KEY`, optional R2 (`BACKUP_BUCKET`), cron every 5 minutes for scheduled cloud backups. See the SETUP header in `worker.js`.
+Requires KV (`backup_kv`), `ENCRYPTION_KEY`, optional R2, cron every 5 minutes. Registration is **off** unless `ALLOW_REGISTRATION=true`.
 
 ---
 
@@ -94,54 +79,19 @@ Requires KV (`backup_kv`), `ENCRYPTION_KEY`, optional R2 (`BACKUP_BUCKET`), cron
 ```bash
 cd agent
 go build -ldflags="-s -w -X main.version=1.2.3" -o vaultbackup-agent ./cmd/agent
+go test ./internal/config/   # sealed-config tests
 ```
 
-Cross-compile examples:
-
-```bash
-GOOS=windows GOARCH=amd64 go build -o vaultbackup-agent-windows-amd64.exe ./cmd/agent
-GOOS=linux   GOARCH=amd64 go build -o vaultbackup-agent-linux-amd64 ./cmd/agent
-```
-
-### MSI (Windows + WiX Toolset v3)
-
-```powershell
-cd agent\packaging\windows
-.\build-msi.ps1 -Version 1.2.3
-```
+CI builds Linux / macOS / Windows EXEs and Windows MSI on changes under `agent/**`.
 
 ---
 
-## CI
+## Security highlights
 
-`.github/workflows/build-agents.yml`:
+- Registration deny-by-default  
+- Minimal public health endpoint  
+- Agent config secrets: AES-256-GCM sealed envelope (not plaintext JSON)  
+- Optional backup-file encryption  
+- Agent Web UI CSP + sanitized API responses  
 
-- **Ubuntu job** — builds Linux / macOS / Windows EXEs and commits them to repo root
-- **Windows job** — installs WiX, builds `vaultbackup-agent-*-x64.msi` + `vaultbackup-agent-windows-amd64.msi`, commits them
-- Race-safe push (rebase + retry) so both jobs can land on `main`
-
-Triggers: changes under `agent/**`, the workflow file, or manual `workflow_dispatch`.
-
----
-
-## Agent capabilities (summary)
-
-- **OS:** Windows, macOS, Linux
-- **Databases:** PostgreSQL, MySQL/MariaDB, SQL Server, MongoDB, Redis, SQLite/Turso, files, custom command
-- **Destinations:** local folder, S3-compatible (R2/B2/Wasabi/MinIO), Azure, WebDAV, SFTP, Worker upload API
-- **Local Web UI** on `127.0.0.1:8787` (setup wizard, status, history)
-- Heartbeats, license check, optional AES-256-GCM encryption
-
-Details: [CAPABILITIES.md](CAPABILITIES.md)
-
----
-
-## Docs map
-
-| Doc | Content |
-|-----|---------|
-| [INSTALL.md](INSTALL.md) | End-user install |
-| [RUN.md](RUN.md) | Flags, service install, offline license |
-| [CAPABILITIES.md](CAPABILITIES.md) | Engines, destinations, safety |
-| [SYNC_LARGE_FILES.md](SYNC_LARGE_FILES.md) | Large-file / API notes |
-| `agent/packaging/windows/` | WiX source + `build-msi.ps1` |
+Details: [docs/SECURITY.md](docs/SECURITY.md)

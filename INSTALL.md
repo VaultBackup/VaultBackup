@@ -1,7 +1,8 @@
 # VaultBackup Desktop Agent — Install Guide
 
 **Public page:** https://backup.enadoctemp.workers.dev/install  
-**Console:** https://backup.enadoctemp.workers.dev/
+**Console:** https://backup.enadoctemp.workers.dev/  
+**Docs index:** [docs/README.md](docs/README.md)
 
 For **SMBs and accounting firms**: back up office databases to **your own** disk or S3-compatible storage (B2, Wasabi, R2, AWS).
 
@@ -24,12 +25,10 @@ For **SMBs and accounting firms**: back up office databases to **your own** disk
 | Linux x64 | https://backup.enadoctemp.workers.dev/download/linux-amd64 |
 | Linux ARM64 | https://backup.enadoctemp.workers.dev/download/linux-arm64 |
 
-Also on GitHub `main` (maintainers): `vaultbackup-agent-windows-amd64.msi`, `vaultbackup-agent-1.2.3-x64.msi`, and platform binaries.
-
 ## Create a token
 
 1. Sign in at https://backup.enadoctemp.workers.dev/
-2. **Desktop Agents** → **Create token** → copy once
+2. **Desktop Agents** → **Create token** → copy once (shown only at creation)
 
 ## Windows — MSI (recommended)
 
@@ -67,13 +66,6 @@ schtasks /Create /TN "VaultBackup Agent" /SC ONSTART /RU SYSTEM /RL HIGHEST /TR 
 .\scripts\install-windows.ps1 -BinaryPath .\vaultbackup-agent-windows-amd64.exe
 ```
 
-**Or NSSM:**
-```text
-nssm install VaultBackupAgent "C:\VaultBackup\vaultbackup-agent.exe"
-nssm set VaultBackupAgent AppParameters "--config C:\VaultBackup\config.yaml --webui 127.0.0.1:8787"
-nssm start VaultBackupAgent
-```
-
 ## Linux / macOS
 
 ```bash
@@ -90,22 +82,32 @@ sudo ./scripts/install-linux.sh ./vaultbackup-agent-linux-amd64
 sudo ./scripts/install-macos.sh ./vaultbackup-agent-darwin-arm64
 ```
 
-## Own storage presets
+## Own storage
 
-In the agent UI choose **S3 / R2 / B2 / Wasabi**, then a preset:
+In the agent UI choose **S3 / R2 / B2 / Wasabi**, then use vendor fields:
 
-- **Backblaze B2** — endpoint `s3.<region>.backblazeb2.com`, Key ID + Application key
-- **Wasabi** — `s3.wasabisys.com` or regional host
-- **Cloudflare R2** — `<accountid>.r2.cloudflarestorage.com`, region `auto`
-- **AWS S3** — empty endpoint + region, IAM keys
-- **Local disk** — destination mode Local
+- **Backblaze B2** — endpoint `s3.<region>.backblazeb2.com`, Key ID + Application key  
+- **Wasabi** — `s3.wasabisys.com` or regional host  
+- **Cloudflare R2** — `<accountid>.r2.cloudflarestorage.com`, region `auto`  
+- **AWS S3** — empty endpoint + region, IAM keys  
+- **Local disk** — destination mode Local  
 
-## Alerts
+Details: [docs/STORAGE.md](docs/STORAGE.md)
 
-When `RESEND_API_KEY` and `MAIL_FROM` are set on the Worker, critical agent failures can email the account owner (rate-limited).
+## Config secrets (important)
+
+Current agent builds **seal secrets at rest** (DB password, storage keys, license token) using AES-256-GCM and `agent.key`.  
+Protect both the config file and `agent.key` (permissions + disk encryption).  
+See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## License server
 
 Built into the binary: `https://backup.enadoctemp.workers.dev` (72-hour offline grace).
 
-See also: [RUN.md](RUN.md) · [CAPABILITIES.md](CAPABILITIES.md) · [README.md](README.md)
+## More docs
+
+- [RUN.md](RUN.md) — flags, service install, offline license  
+- [CAPABILITIES.md](CAPABILITIES.md) — engines and destinations  
+- [docs/PRODUCT.md](docs/PRODUCT.md) — product overview  
+- [docs/AGENT.md](docs/AGENT.md) — agent deep dive  
+- [docs/MINDMAP.md](docs/MINDMAP.md) — architecture mindmap  

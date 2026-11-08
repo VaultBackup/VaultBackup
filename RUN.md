@@ -1,7 +1,8 @@
-# VaultBackup Desktop Agent v1.2.3 — run guide
+# VaultBackup Desktop Agent — run guide
 
 **Downloads:** https://backup.enadoctemp.workers.dev/install  
-**Console:** https://backup.enadoctemp.workers.dev/
+**Console:** https://backup.enadoctemp.workers.dev/  
+**Docs:** [docs/README.md](docs/README.md)
 
 ## Quick start
 
@@ -24,68 +25,55 @@ chmod +x ./vaultbackup-agent-darwin-arm64
 ./vaultbackup-agent-darwin-arm64 --webui 127.0.0.1:8787
 ```
 
-3. Open the Web UI:
-   - http://127.0.0.1:8787 (default — localhost only)
-4. Paste the agent token → choose database + destination → **Save** → **Test license** → **Run backup now**.
+3. Open http://127.0.0.1:8787
+4. Paste token → database + destination → **Save** → **Test license** → **Run backup now**
 
-The license server URL is built into the agent (`https://backup.enadoctemp.workers.dev`). You only need the token.
+License server URL is built in (`https://backup.enadoctemp.workers.dev`).
 
 ## Flags
 
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `-config` / `--config` | `config.yaml` | Config path |
-| `-webui` / `--webui` | `127.0.0.1:8787` | Web UI listen (`0.0.0.0:8787` needs password) |
-| `-webui-password` | | Optional UI password (or env `WEBUI_PASSWORD`) |
+| `-webui` / `--webui` | `127.0.0.1:8787` | Web UI listen |
+| `-webui-password` | | Optional UI password (or `WEBUI_PASSWORD`) |
 | `-no-webui` / `--no-webui` | false | Disable Web UI |
 | `-once` / `--once` | false | One backup then exit |
 | `-type` | | Override backup type for this run |
 | `-restore` / `-restore-out` | | Decrypt an encrypted backup file |
 
-Environment override (staging only): `VAULTBACKUP_SERVER_URL=https://...`
+Staging only: `VAULTBACKUP_SERVER_URL=https://...`
 
 ## Service install (production)
 
 ```bash
-# Linux (systemd) — Restart=always, StartLimit protection
+# Linux (systemd)
 sudo ./scripts/install-linux.sh ./vaultbackup-agent-linux-amd64
 
-# macOS (launchd) — KeepAlive + RunAtLoad
+# macOS (launchd)
 sudo ./scripts/install-macos.sh ./vaultbackup-agent-darwin-arm64
 
-# Windows (Admin PowerShell) — AtStartup + daily safety-net + RestartCount 999
+# Windows (Admin PowerShell)
 .\scripts\install-windows.ps1 -BinaryPath .\vaultbackup-agent-windows-amd64.exe
 
-# Windows MSI already registers a service during install
+# Windows MSI
 msiexec /i vaultbackup-agent-windows-amd64.msi
 ```
 
-Post-install checklist:
-
-1. Open http://127.0.0.1:8787 → paste token → **Test license** → confirm “License OK”
-2. Verify service is running:
-   - Linux: `systemctl status vaultbackup-agent`
-   - Windows: `Get-ScheduledTask -TaskName VaultBackupAgent | Get-ScheduledTaskInfo` (or Services → VaultBackup Agent after MSI)
-   - macOS: `launchctl print system/com.vaultbackup.agent`
-3. Ensure the machine can reach the Worker at least every few days.
+Post-install: open UI → token → Test license → confirm service running.
 
 ## License / offline
 
-Agent must phone home at least once every **72 hours**. Within that window it can run offline. After grace expires (or on invalid/revoked token / fingerprint mismatch) backups are **blocked**.
-
-Recommendations:
-
-- Prefer checking in more often when online
-- Set a webhook so you are alerted on license denial or critical errors
-- Monitor console for agents offline > 48 h
-- Hardware change / major OS reinstall → issue a **new** agent token
+Agent must check in at least every **72 hours**. After grace expires, backups are blocked. New hardware → new agent token.
 
 ## Security notes
 
-- Default Web UI binds **localhost only** (`127.0.0.1:8787`).
-- For LAN access: `--webui=0.0.0.0:8787 --webui-password=SECRET`
-- Optional AES-256-GCM encryption before upload.
-- Agent token binds to one device fingerprint.
-- Always use absolute paths for `work_dir`, `log_file`, and `key_file`.
+- Default Web UI is **localhost only**
+- LAN bind requires `--webui-password`
+- **Config secrets are sealed at rest** (AES-256-GCM + `agent.key`) — protect both files
+- Optional AES-256-GCM encryption of backup files before upload
+- Use absolute paths for `work_dir`, `log_file`, and `key_file`
+
+Details: [docs/SECURITY.md](docs/SECURITY.md) · [docs/AGENT.md](docs/AGENT.md)
 
 See also: [INSTALL.md](INSTALL.md) · [CAPABILITIES.md](CAPABILITIES.md)
