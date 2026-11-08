@@ -34,6 +34,9 @@ jobs:
       - name: SEO / AEO / GEO / XEO enhancements
         run: node scripts/enhance-public-seo.mjs worker.js
 
+      - name: Syntax check worker.js
+        run: node --check worker.js
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -44,6 +47,6 @@ jobs:
       - name: Summary
         run: |
           echo "### Worker deploy" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Docs: /docs /docs/product /docs/security /docs/storage /docs/agent" >> "$GITHUB_STEP_SUMMARY"
-          echo "- SEO: sitemap, robots, llms.txt, JSON-LD" >> "$GITHUB_STEP_SUMMARY"
           echo "- https://backup.enadoctemp.workers.dev/docs" >> "$GITHUB_STEP_SUMMARY"
+          echo "- https://backup.enadoctemp.workers.dev/sitemap.xml" >> "$GITHUB_STEP_SUMMARY"
+          echo "- https://backup.enadoctemp.workers.dev/llms.txt" >> "$GITHUB_STEP_SUMMARY"
