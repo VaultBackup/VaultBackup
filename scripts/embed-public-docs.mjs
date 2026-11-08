@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-/** Inject public /docs HTML + early GET routes (before auth / getKV). */
+/** Inject public /docs pages into worker.js using the real route style. */
 import fs from "fs";
 
-const path = process.argv[2] || "worker.js";
-let s = fs.readFileSync(path, "utf8");
+const file = process.argv[2] || "worker.js";
+let s = fs.readFileSync(file, "utf8");
 
 function page(title, body) {
   return `<!DOCTYPE html>
@@ -44,7 +44,7 @@ const pages = {
 <p class="lead">Guides for SMBs and accounting firms using VaultBackup with their own storage.</p>
 <div class="card"><h2>Guides</h2>
 <ul>
-<li><a href="/install"><strong>Install the desktop agent</strong></a> — Windows MSI, macOS, Linux</li>
+<li><a href="/install"><strong>Install the desktop agent</strong></a></li>
 <li><a href="/docs/product"><strong>Product overview</strong></a></li>
 <li><a href="/docs/agent"><strong>Desktop agent</strong></a></li>
 <li><a href="/docs/storage"><strong>Own storage (BYO)</strong></a></li>
@@ -60,9 +60,8 @@ const pages = {
 <li>Teams that need control of the storage account</li></ul></div>
 <div class="card"><h2>Two paths</h2>
 <table><tr><th>Path</th><th>Use when</th></tr>
-<tr><td><strong>Desktop agent</strong></td><td>Office / LAN databases; large dumps; your disk or S3-compatible storage</td></tr>
+<tr><td><strong>Desktop agent</strong></td><td>Office / LAN databases; your disk or S3-compatible storage</td></tr>
 <tr><td>Worker console</td><td>Small public cloud databases only</td></tr></table>
-<p class="muted">Lead with agent + own storage for office workloads.</p>
 <p><a class="btn" href="/install">Install agent</a> <a class="btn secondary" href="/docs/storage">Storage guide</a></p></div>`),
   "/docs/security": page("Security", `<h1>Security</h1>
 <p class="lead">How VaultBackup protects credentials and backup data.</p>
@@ -70,8 +69,7 @@ const pages = {
 <ul><li>Registration locked unless explicitly enabled</li>
 <li>Login rate limiting</li><li>Agent APIs require authentication</li></ul></div>
 <div class="card"><h2>Agent config</h2>
-<p>License token, database URI, and storage keys are stored in a <strong>sealed AES-256-GCM envelope</strong> with a local key file (<code>agent.key</code>), not plaintext JSON.</p>
-<p class="muted">Protect config + key files; use full-disk encryption where possible.</p></div>
+<p>Secrets are stored in a <strong>sealed AES-256-GCM envelope</strong> with a local key file (<code>agent.key</code>), not plaintext JSON.</p></div>
 <div class="card"><h2>Backup files</h2>
 <ul><li>Optional AES-256-GCM before upload</li><li>TLS to object storage</li><li>Local Web UI defaults to localhost</li></ul>
 <p><a class="btn secondary" href="/docs/agent">Agent guide</a></p></div>`),
@@ -83,22 +81,20 @@ const pages = {
 <tr><td>Local</td><td>Disk or NAS on the agent machine</td></tr>
 <tr><td>Azure / WebDAV / SFTP</td><td>Cloud or NAS targets</td></tr></table></div>
 <div class="card"><h2>Presets</h2>
-<h3>Backblaze B2</h3><p class="muted">Endpoint <code>s3.&lt;region&gt;.backblazeb2.com</code> — Key ID + Application key.</p>
-<h3>Wasabi</h3><p class="muted"><code>s3.wasabisys.com</code> or regional endpoint.</p>
-<h3>Cloudflare R2</h3><p class="muted"><code>&lt;accountid&gt;.r2.cloudflarestorage.com</code>, region <code>auto</code>.</p>
-<h3>AWS S3</h3><p class="muted">Empty custom endpoint + region + IAM keys.</p>
+<p class="muted"><strong>B2</strong> — s3.&lt;region&gt;.backblazeb2.com · Key ID + Application key<br>
+<strong>Wasabi</strong> — s3.wasabisys.com<br>
+<strong>R2</strong> — &lt;accountid&gt;.r2.cloudflarestorage.com · region auto<br>
+<strong>AWS S3</strong> — empty endpoint + region + IAM keys</p>
 <p><a class="btn" href="/install">Install agent</a></p></div>`),
   "/docs/agent": page("Desktop agent", `<h1>Desktop agent</h1>
 <p class="lead">Runs on the machine that can see your database.</p>
 <div class="card"><h2>Quick start</h2>
 <ol>
 <li><a href="/">Dashboard</a> → Desktop Agents → <strong>Create token</strong></li>
-<li><a href="/download/windows-msi">Download Windows MSI</a> (or other OS on <a href="/install">install</a>)</li>
+<li><a href="/download/windows-msi">Download Windows MSI</a></li>
 <li>Open <code>http://127.0.0.1:8787</code> → token → database + storage → Save → Test → Run backup</li>
-</ol></div>
-<div class="card"><h2>Windows MSI</h2>
+</ol>
 <pre>msiexec /i vaultbackup-agent-windows-amd64.msi</pre>
-<p class="muted">License server is built in. 72-hour offline grace after check-in.</p>
 <p><a class="btn" href="/download/windows-msi">Download MSI</a>
 <a class="btn secondary" href="/install">Full install guide</a></p></div>`),
 };
@@ -107,8 +103,8 @@ const markerStart = "/* __PUBLIC_DOCS_START__ */";
 const markerEnd = "/* __PUBLIC_DOCS_END__ */";
 const block = `${markerStart}
 const PUBLIC_DOCS = ${JSON.stringify(pages)};
-function publicDocsResponse(path) {
-  const html = PUBLIC_DOCS[path];
+function publicDocsResponse(docPath) {
+  const html = PUBLIC_DOCS[docPath];
   if (!html) return null;
   return new Response(html, {
     headers: {
@@ -141,37 +137,42 @@ if (s.includes(markerStart) && s.includes(markerEnd)) {
   console.log("Prepended PUBLIC_DOCS");
 }
 
-// Remove any previous weak injection attempts
-s = s.replace(/\n\s*\/\/ Public product documentation[\s\S]*?if \(method === "GET" && path === "\/install"\)/g, "\n  if (method === \"GET\" && path === \"/install\")");
-
-const routeEarly = `
-  // Public docs (must run before auth / getKV)
-  if (method === "GET" && (path === "/docs" || path.startsWith("/docs/"))) {
-    const docRes = publicDocsResponse(path === "/docs" ? "/docs" : path);
+// Real route in this codebase:
+// if (method === "GET" && (path === "/install" || path === "/download" || path === "/agent"))
+const installCombo =
+  'if (method === "GET" && (path === "/install" || path === "/download" || path === "/agent"))';
+const docsBeforeInstall = `
+if (method === "GET" && (path === "/docs" || path.startsWith("/docs/"))) {
+    const docRes = publicDocsResponse(path);
     if (docRes) return docRes;
   }
-`;
+  ${installCombo}`;
 
-if (s.includes("publicDocsResponse(path")) {
-  console.log("Early /docs route already present");
-} else {
-  const installNeedle = 'if (method === "GET" && path === "/install")';
-  if (s.includes(installNeedle)) {
-    s = s.replace(installNeedle, routeEarly + "\n  " + installNeedle);
-    console.log("Inserted early /docs route before /install");
+if (s.includes("publicDocsResponse(path)")) {
+  // Ensure it sits immediately before install combo
+  if (!s.includes(docsBeforeInstall) && s.includes(installCombo)) {
+    // Remove stray earlier injections of publicDocsResponse blocks (best effort)
+    s = s.replace(
+      /\n\s*\/\/ Public docs[\s\S]*?if \(method === "GET" && \(path === "\/docs"[\s\S]*?\n  /g,
+      "\n  "
+    );
+    s = s.replace(installCombo, docsBeforeInstall);
+    console.log("Re-bound /docs handler before install combo");
   } else {
-    // Fallback: after URL path is computed — look for common pattern
-    const alt = "const path = url.pathname";
-    const idx = s.indexOf(alt);
-    if (idx >= 0) {
-      const insertAt = s.indexOf("\n", idx) + 1;
-      s = s.slice(0, insertAt) + routeEarly + s.slice(insertAt);
-      console.log("Inserted early /docs route after pathname");
-    } else {
-      console.warn("WARNING: could not insert /docs route");
-    }
+    console.log("/docs handler already wired");
   }
+} else if (s.includes(installCombo)) {
+  s = s.replace(installCombo, docsBeforeInstall);
+  console.log("Inserted /docs handler before install combo");
+} else {
+  console.warn("install combo route not found");
 }
 
-fs.writeFileSync(path, s);
-console.log("Wrote", path, s.length);
+// robots allow docs
+if (s.includes('"Allow: /install"') && !s.includes('"Allow: /docs"')) {
+  s = s.replace('"Allow: /install"', '"Allow: /install",\n      "Allow: /docs"');
+  console.log("robots.txt allow /docs");
+}
+
+fs.writeFileSync(file, s);
+console.log("Wrote", file, s.length);
