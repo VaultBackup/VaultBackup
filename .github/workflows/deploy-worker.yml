@@ -6,9 +6,7 @@ on:
     paths:
       - "worker.js"
       - "wrangler.toml"
-      - "scripts/ensure-agent-msi-route.mjs"
-      - "scripts/embed-public-docs.mjs"
-      - "scripts/enhance-public-seo.mjs"
+      - "scripts/*.mjs"
       - ".github/workflows/deploy-worker.yml"
   workflow_dispatch:
 
@@ -34,6 +32,9 @@ jobs:
       - name: SEO / AEO / GEO / XEO enhancements
         run: node scripts/enhance-public-seo.mjs worker.js
 
+      - name: Unified favicon + humanize copy
+        run: node scripts/unify-favicon-humanize.mjs worker.js
+
       - name: Syntax check worker.js
         run: node --check worker.js
 
@@ -47,6 +48,5 @@ jobs:
       - name: Summary
         run: |
           echo "### Worker deploy" >> "$GITHUB_STEP_SUMMARY"
-          echo "- https://backup.enadoctemp.workers.dev/docs" >> "$GITHUB_STEP_SUMMARY"
-          echo "- https://backup.enadoctemp.workers.dev/sitemap.xml" >> "$GITHUB_STEP_SUMMARY"
-          echo "- https://backup.enadoctemp.workers.dev/llms.txt" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Favicon: /icon.svg and /favicon.ico" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Docs + install share the same icon" >> "$GITHUB_STEP_SUMMARY"
