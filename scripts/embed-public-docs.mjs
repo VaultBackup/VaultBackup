@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Inject public /docs pages with SEO + JSON-LD (AEO/GEO). */
+/** Inject public /docs pages with SEO + JSON-LD + shared favicon. */
 import fs from "fs";
 
 const file = process.argv[2] || "worker.js";
@@ -43,20 +43,22 @@ function page(title, description, path, body, extraLd = []) {
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} · VaultBackup</title>
+<title>${title} | VaultBackup</title>
 <meta name="description" content="${description}">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
 <meta name="keywords" content="database backup, accounting firm backup, SMB backup, SQL Server backup, backup to S3, Backblaze B2, Wasabi, Cloudflare R2, own storage backup, encrypted database backup, desktop backup agent">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
 <link rel="canonical" href="${canonical}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="VaultBackup">
 <meta property="og:locale" content="en_US">
 <meta property="og:url" content="${canonical}">
-<meta property="og:title" content="${title} · VaultBackup">
+<meta property="og:title" content="${title} | VaultBackup">
 <meta property="og:description" content="${description}">
 <meta property="og:image" content="https://backup.enadoctemp.workers.dev/og.svg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${title} · VaultBackup">
+<meta name="twitter:title" content="${title} | VaultBackup">
 <meta name="twitter:description" content="${description}">
 <meta name="twitter:image" content="https://backup.enadoctemp.workers.dev/og.svg">
 ${ld}
@@ -77,14 +79,14 @@ pre{background:#0b1220;border:1px solid var(--border);border-radius:8px;padding:
 ul{padding-left:1.25rem}li{margin:.35rem 0}
 footer{max-width:48rem;margin:0 auto;padding:1rem 1.25rem 2rem;color:var(--muted);font-size:.85rem}
 </style></head><body>
-<header><div><strong>VaultBackup</strong> <span class="muted">· Docs</span></div>
+<header><div><strong>VaultBackup</strong> <span class="muted">Docs</span></div>
 <div class="links">
 <a href="/">Dashboard</a><a href="/install">Install</a><a href="/docs">Docs</a>
 <a href="/docs/product">Product</a><a href="/docs/security">Security</a>
 <a href="/docs/storage">Storage</a><a href="/docs/agent">Agent</a>
 </div></header>
 <main>${body}</main>
-<footer>VaultBackup — encrypted database backups to your own storage. <a href="/install">Install agent</a> · <a href="/llms.txt">llms.txt</a></footer>
+<footer>VaultBackup. Encrypted database backups to your own storage. <a href="/install">Install agent</a> · <a href="/llms.txt">llms.txt</a></footer>
 </body></html>`;
 }
 
@@ -128,7 +130,7 @@ const pages = {
 <p class="lead">Guides for SMBs and accounting firms using VaultBackup with their own storage.</p>
 <div class="card"><h2>Guides</h2>
 <ul>
-<li><a href="/install"><strong>Install the desktop agent</strong></a> — Windows MSI, macOS, Linux</li>
+<li><a href="/install"><strong>Install the desktop agent</strong></a> (Windows MSI, macOS, Linux)</li>
 <li><a href="/docs/product"><strong>Product overview</strong></a></li>
 <li><a href="/docs/agent"><strong>Desktop agent</strong></a></li>
 <li><a href="/docs/storage"><strong>Own storage (BYO)</strong></a></li>
@@ -143,7 +145,7 @@ const pages = {
     "Inexpensive encrypted database backups for SMBs and accounting firms to your own S3, B2, Wasabi, R2, or local disk.",
     "/docs/product",
     `<h1>Product overview</h1>
-<p class="lead">Inexpensive encrypted database backups for SMBs and accounting firms — stored in <strong>your</strong> bucket or disk.</p>
+<p class="lead">Inexpensive encrypted database backups for SMBs and accounting firms, stored in <strong>your</strong> bucket or disk.</p>
 <div class="card"><h2>Who it is for</h2>
 <ul><li>Accounting firms (SQL Server / local MySQL)</li>
 <li>SMBs that want reliable backups without large SaaS storage bills</li>
@@ -182,10 +184,10 @@ const pages = {
 <tr><td>Local</td><td>Disk or NAS on the agent machine</td></tr>
 <tr><td>Azure / WebDAV / SFTP</td><td>Cloud or NAS targets</td></tr></table></div>
 <div class="card"><h2>Presets</h2>
-<p class="muted"><strong>B2</strong> — s3.&lt;region&gt;.backblazeb2.com · Key ID + Application key<br>
-<strong>Wasabi</strong> — s3.wasabisys.com<br>
-<strong>R2</strong> — &lt;accountid&gt;.r2.cloudflarestorage.com · region auto<br>
-<strong>AWS S3</strong> — empty endpoint + region + IAM keys</p>
+<p class="muted"><strong>B2</strong>: s3.&lt;region&gt;.backblazeb2.com, Key ID + Application key<br>
+<strong>Wasabi</strong>: s3.wasabisys.com<br>
+<strong>R2</strong>: &lt;accountid&gt;.r2.cloudflarestorage.com, region auto<br>
+<strong>AWS S3</strong>: empty endpoint + region + IAM keys</p>
 <p><a class="btn" href="/install">Install agent</a></p></div>`
   ),
   "/docs/agent": page(
@@ -196,9 +198,9 @@ const pages = {
 <p class="lead">Runs on the machine that can see your database.</p>
 <div class="card"><h2>Quick start</h2>
 <ol>
-<li><a href="/">Dashboard</a> → Desktop Agents → <strong>Create token</strong></li>
+<li><a href="/">Dashboard</a> then Desktop Agents, then <strong>Create token</strong></li>
 <li><a href="/download/windows-msi">Download Windows MSI</a></li>
-<li>Open <code>http://127.0.0.1:8787</code> → token → database + storage → Save → Test → Run backup</li>
+<li>Open <code>http://127.0.0.1:8787</code>, paste token, set database and storage, Save, Test, Run backup</li>
 </ol>
 <pre>msiexec /i vaultbackup-agent-windows-amd64.msi</pre>
 <p><a class="btn" href="/download/windows-msi">Download MSI</a>
