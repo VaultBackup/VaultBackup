@@ -40,8 +40,11 @@ jobs:
       - name: Go-live hardening
         run: node scripts/go-live-hardening.mjs worker.js
 
-      - name: Strip public GitHub mentions from /install
+      - name: Strip public GitHub from /install
         run: node scripts/strip-install-github.mjs worker.js
+
+      - name: Customer-facing Support page
+        run: node scripts/patch-support-page.mjs worker.js
 
       - name: Syntax check
         run: node --check worker.js
