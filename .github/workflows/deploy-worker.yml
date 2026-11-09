@@ -25,7 +25,7 @@ jobs:
       - name: MSI route + install UX
         run: node scripts/ensure-agent-msi-route.mjs worker.js
 
-      - name: Public docs (incl. restore, privacy, support)
+      - name: Public docs
         run: node scripts/embed-public-docs.mjs worker.js
 
       - name: SEO enhancements
@@ -37,8 +37,11 @@ jobs:
       - name: Landing nav links
         run: node scripts/link-landing-nav.mjs worker.js
 
-      - name: Go-live hardening (registration lock)
+      - name: Go-live hardening
         run: node scripts/go-live-hardening.mjs worker.js
+
+      - name: Strip public GitHub mentions from /install
+        run: node scripts/strip-install-github.mjs worker.js
 
       - name: Syntax check
         run: node --check worker.js
