@@ -49,6 +49,9 @@ jobs:
       - name: Polish dashboard header
         run: node scripts/polish-dashboard-header.mjs worker.js
 
+      - name: Fix favicon CSP (img-src self)
+        run: node scripts/fix-favicon-csp.mjs worker.js
+
       - name: Syntax check
         run: node --check worker.js
 
