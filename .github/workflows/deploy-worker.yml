@@ -22,38 +22,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: MSI route + install UX
-        run: node scripts/ensure-agent-msi-route.mjs worker.js
-
-      - name: Public docs
-        run: node scripts/embed-public-docs.mjs worker.js
-
-      - name: SEO enhancements
-        run: node scripts/enhance-public-seo.mjs worker.js
-
-      - name: Favicon + humanize
-        run: node scripts/unify-favicon-humanize.mjs worker.js
-
-      - name: Landing nav links
-        run: node scripts/link-landing-nav.mjs worker.js
-
-      - name: Go-live hardening
-        run: node scripts/go-live-hardening.mjs worker.js
-
-      - name: Strip public GitHub from /install
-        run: node scripts/strip-install-github.mjs worker.js
-
-      - name: Customer-facing Support page
-        run: node scripts/patch-support-page.mjs worker.js
-
-      - name: Polish dashboard header
-        run: node scripts/polish-dashboard-header.mjs worker.js
-
-      - name: Fix favicon CSP
-        run: node scripts/fix-favicon-csp.mjs worker.js
-
-      - name: Polish Connect Database modal
-        run: node scripts/polish-connect-db-modal.mjs worker.js
+      - run: node scripts/ensure-agent-msi-route.mjs worker.js
+      - run: node scripts/embed-public-docs.mjs worker.js
+      - run: node scripts/enhance-public-seo.mjs worker.js
+      - run: node scripts/unify-favicon-humanize.mjs worker.js
+      - run: node scripts/link-landing-nav.mjs worker.js
+      - run: node scripts/go-live-hardening.mjs worker.js
+      - run: node scripts/strip-install-github.mjs worker.js
+      - run: node scripts/patch-support-page.mjs worker.js
+      - run: node scripts/polish-dashboard-header.mjs worker.js
+      - run: node scripts/fix-favicon-csp.mjs worker.js
+      - run: node scripts/polish-connect-db-modal.mjs worker.js
+      - run: node scripts/connect-db-wizard.mjs worker.js
 
       - name: Syntax check
         run: node --check worker.js
