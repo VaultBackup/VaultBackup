@@ -46,6 +46,9 @@ jobs:
       - name: Customer-facing Support page
         run: node scripts/patch-support-page.mjs worker.js
 
+      - name: Polish dashboard header
+        run: node scripts/polish-dashboard-header.mjs worker.js
+
       - name: Syntax check
         run: node --check worker.js
 
