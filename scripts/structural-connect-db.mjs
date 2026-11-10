@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-/** Structural step panels + wizard that does not reset step on every mutation. */
+/** Structural step panels + full drawer CSS (does not rely on Tailwind utilities). */
 import fs from "fs";
 
 const file = process.argv[2] || "worker.js";
 let s = fs.readFileSync(file, "utf8");
 
+// --- Wrap panels if needed ---
 if (!(s.includes('data-db-step="1"') && s.includes('data-db-step="2"') && s.includes('data-db-step="3"'))) {
-  const scrollOpen = 'class="flex-1 overflow-y-auto px-5 py-4 space-y-5">';
-  let scrollMarker = scrollOpen;
-  let idx = s.indexOf(scrollOpen);
+  let scrollMarker = 'class="flex-1 overflow-y-auto px-5 py-4 space-y-5">';
+  let idx = s.indexOf(scrollMarker);
   if (idx < 0) {
     const m = s.match(/class="flex-1 overflow-y-auto[^"]*">/);
     if (m) { scrollMarker = m[0]; idx = s.indexOf(scrollMarker); }
@@ -48,7 +48,10 @@ if (!(s.includes('data-db-step="1"') && s.includes('data-db-step="2"') && s.incl
 }
 
 if (s.includes('id="db-modal-steps"')) {
-  s = s.replace(/id="db-modal-steps" class="[^"]*"[^>]*>[^<]*/, 'id="db-modal-steps" class="db-wiz-steps" role="tablist" aria-label="Setup steps">');
+  s = s.replace(
+    /id="db-modal-steps" class="[^"]*"[^>]*>[^<]*/,
+    'id="db-modal-steps" class="db-wiz-steps" role="tablist" aria-label="Setup steps">'
+  );
 }
 
 for (const old of [
@@ -61,44 +64,202 @@ for (const old of [
   if (s.includes(old)) s = s.replaceAll(old, "Complete each step. Test the connection before saving.");
 }
 
-for (const [a, b] of [
-  ['class="absolute inset-y-0 right-0 w-full max-w-lg bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col"', 'class="db-drawer absolute inset-y-0 right-0 w-full max-w-xl bg-[#0b1220] border-l border-slate-800 shadow-2xl flex flex-col"'],
-  ['id="db-modal-backdrop" class="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]"', 'id="db-modal-backdrop" class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"'],
-]) {
-  if (s.includes(a)) s = s.replace(a, b);
+// Ensure drawer has db-drawer class marker
+if (s.includes('id="db-modal"') && !s.includes("db-drawer")) {
+  s = s.replace(
+    /(<div id="db-modal"[^>]*>\s*<div id="db-modal-backdrop"[^>]*><\/div>\s*<div )class="([^"]*)"/,
+    '$1class="db-drawer $2"'
+  );
 }
+// If already has class list with absolute..., force db-drawer prefix
+s = s.replace(
+  /class="(absolute inset-y-0 right-0[^"]*)"/,
+  'class="db-drawer $1"'
+);
+s = s.replace(/class="db-drawer db-drawer /g, 'class="db-drawer ');
 
+// Full self-contained CSS for modal (no Tailwind dependency)
 const css = `
 /* __DB_STRUCT_CSS__ */
-#db-modal .db-drawer { background: linear-gradient(180deg,#0d1526 0%,#0b1220 50%,#0a101c 100%); }
-#db-modal .db-step-panel { display: none; animation: dbStepIn .18s ease; }
-#db-modal .db-step-panel.is-active { display: block; }
-#db-modal .db-wiz-steps { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+#db-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 80 !important;
+}
+#db-modal.hidden { display: none !important; }
+#db-modal:not(.hidden) { display: block !important; }
+#db-modal-backdrop {
+  position: absolute !important;
+  inset: 0 !important;
+  background: rgba(2, 6, 23, 0.72) !important;
+  backdrop-filter: blur(4px);
+}
+#db-modal .db-drawer {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  max-width: 36rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: linear-gradient(180deg, #0d1526 0%, #0b1220 45%, #0a101c 100%) !important;
+  border-left: 1px solid #1e293b !important;
+  box-shadow: -12px 0 40px rgba(0,0,0,0.45) !important;
+  z-index: 2;
+}
+#db-modal .db-drawer > .flex.items-start,
+#db-modal .db-drawer-head,
+#db-modal .db-drawer > div:first-of-type:not(#db-modal-backdrop) {
+  /* header */
+}
+#db-modal .db-drawer > div:first-child {
+  /* may be backdrop sibling handled outside */
+}
+#db-modal .overflow-y-auto {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  padding: 1.25rem 1.5rem !important;
+  min-height: 0 !important;
+}
+#db-modal .db-footer {
+  flex-shrink: 0 !important;
+  border-top: 1px solid #1e293b;
+  background: rgba(11, 18, 32, 0.95);
+  padding: 0.9rem 1.25rem !important;
+}
+#db-modal .db-step-panel { display: none !important; }
+#db-modal .db-step-panel.is-active { display: block !important; animation: dbStepIn .18s ease; }
+#db-modal .db-wiz-steps {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 0.5rem !important;
+  margin-top: 0.75rem !important;
+}
 #db-modal .db-wiz-step {
-  display: inline-flex; align-items: center; gap: .45rem;
-  border: 1px solid #1e293b; background: #0f172a; color: #64748b;
-  font-size: 11px; font-weight: 600; padding: .4rem .75rem; border-radius: 999px; cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
 }
 #db-modal .db-wiz-step .db-wiz-num {
-  width: 1.25rem; height: 1.25rem; border-radius: 999px; display: inline-flex;
-  align-items: center; justify-content: center; background: #1e293b; color: #94a3b8; font-size: 10px;
+  width: 1.25rem; height: 1.25rem; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #1e293b; color: #94a3b8; font-size: 10px;
 }
-#db-modal .db-wiz-step.is-on { border-color: rgba(34,197,94,.5); background: rgba(34,197,94,.1); color: #a7f3d0; }
+#db-modal .db-wiz-step.is-on {
+  border-color: rgba(34,197,94,0.5);
+  background: rgba(34,197,94,0.1);
+  color: #a7f3d0;
+}
 #db-modal .db-wiz-step.is-on .db-wiz-num { background: #16a34a; color: #fff; }
-#db-modal .db-wiz-step.is-done { border-color: rgba(34,197,94,.25); color: #6ee7b7; }
-#db-modal input[type="text"], #db-modal input[type="password"], #db-modal select, #db-modal textarea {
-  width: 100%; background: #060b14; border: 1px solid #1e293b; border-radius: 12px;
-  padding: .7rem .9rem; font-size: 13px; color: #e2e8f0; outline: none;
+#db-modal .db-wiz-step.is-done { border-color: rgba(34,197,94,0.25); color: #6ee7b7; }
+#db-modal label { display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 0.35rem; }
+#db-modal input[type="text"],
+#db-modal input[type="password"],
+#db-modal select,
+#db-modal textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: #060b14;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  font-size: 13px;
+  color: #e2e8f0;
+  outline: none;
 }
-#db-modal textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; min-height: 5.5rem; }
-#db-modal input:focus, #db-modal select:focus, #db-modal textarea:focus {
-  border-color: rgba(34,197,94,.45); box-shadow: 0 0 0 3px rgba(34,197,94,.12);
+#db-modal textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  min-height: 5.5rem;
+}
+#db-modal input:focus,
+#db-modal select:focus,
+#db-modal textarea:focus {
+  border-color: rgba(34,197,94,0.45);
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.12);
 }
 #db-modal .provider-chip {
-  display: inline-flex; font-size: 11px; font-weight: 600; padding: .4rem .75rem;
-  border-radius: 999px; border: 1px solid #334155; background: #0b1220; color: #cbd5e1;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: #0b1220;
+  color: #cbd5e1;
+  cursor: pointer;
 }
-@keyframes dbStepIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#db-modal .provider-chip:hover {
+  border-color: rgba(34,197,94,0.45);
+  color: #bbf7d0;
+  background: rgba(34,197,94,0.08);
+}
+#db-modal #btn-close-modal {
+  border: none; background: transparent; color: #94a3b8; cursor: pointer;
+}
+#db-modal #btn-close-modal:hover { color: #fff; }
+#db-modal .db-footer .flex,
+#db-modal .db-footer > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+#db-modal #btn-db-back,
+#db-modal #btn-cancel-modal {
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#db-modal #btn-test-db {
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#db-modal #btn-db-next,
+#db-modal #btn-save-db {
+  padding: 0.6rem 1.15rem;
+  border-radius: 12px;
+  border: 1px solid #16a34a;
+  background: #16a34a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(22,163,74,0.2);
+}
+#db-modal #btn-save-db:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+@keyframes dbStepIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (max-width: 640px) {
+  #db-modal .db-drawer { max-width: 100% !important; }
+}
 `;
 
 s = s.replace(/\/\* __DB_STRUCT_CSS__[\s\S]*?(?=\n\/\*|\n<\/style>)/g, "");
@@ -125,10 +286,10 @@ const js = `
     el.innerHTML = labels.map(function(label,i){
       var n = i+1;
       var cls = 'db-wiz-step'+(step===n?' is-on':'')+(n<step?' is-done':'');
-      return '<button type="button" class="'+cls+'" data-goto="'+n+'"><span class="db-wiz-num">'+n+'</span> '+label+'</button>';
+      return '<button type="button" class="'+cls+'" data-goto="'+n+'"><span class="db-wiz-num">'+n+'</span><span>'+label+'</span></button>';
     }).join('');
     el.querySelectorAll('[data-goto]').forEach(function(btn){
-      btn.onclick = function(e){ e.preventDefault(); step = parseInt(btn.getAttribute('data-goto'),10)||1; paint(); };
+      btn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); step = parseInt(btn.getAttribute('data-goto'),10)||1; paint(); };
     });
   }
 
@@ -138,12 +299,10 @@ const js = `
     var parent = test.parentElement;
     var back = document.createElement('button');
     back.id='btn-db-back'; back.type='button';
-    back.className='px-4 py-2.5 text-xs font-medium rounded-xl border border-slate-700 text-slate-300 bg-transparent';
     back.textContent='Back';
     back.onclick=function(e){ e.preventDefault(); if(step>1){ step--; paint(); } };
     var next = document.createElement('button');
     next.id='btn-db-next'; next.type='button';
-    next.className='px-5 py-2.5 text-xs font-semibold rounded-xl text-white bg-brand-600 hover:bg-brand-700';
     next.textContent='Continue';
     next.onclick=function(e){
       e.preventDefault();
@@ -183,7 +342,6 @@ const js = `
     }
   });
 
-  // Only react when modal transitions hidden -> visible
   var obs = new MutationObserver(function(){
     var m = $('db-modal');
     if(!m) return;
@@ -202,4 +360,4 @@ const end = s.indexOf("</script>", start);
 s = s.slice(0, end) + "\n" + js + "\n" + s.slice(end);
 
 fs.writeFileSync(file, s);
-console.log("structural wizard fixed", s.length);
+console.log("drawer CSS + wizard done", s.length);
