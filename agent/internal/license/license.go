@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,15 +16,12 @@ import (
 
 const gracePeriod = 72 * time.Hour
 
-// DefaultServerURL is the hardcoded VaultBackup Worker / license server.
-// Override at build time with -ldflags, or at runtime with VAULTBACKUP_SERVER_URL.
-var DefaultServerURL = "https://backup.enadoctemp.workers.dev"
+// DefaultServerURL is the only license / Worker URL. Not configurable at runtime.
+const DefaultServerURL = "https://backup.enadoctemp.workers.dev"
 
-// ServerURL returns the effective license/Worker base URL (hardcoded).
+// ServerURL returns the hardcoded license/Worker base URL.
+// Config, UI, env, and API cannot override this.
 func ServerURL() string {
-	if v := strings.TrimSpace(os.Getenv("VAULTBACKUP_SERVER_URL")); v != "" {
-		return strings.TrimRight(v, "/")
-	}
 	return strings.TrimRight(DefaultServerURL, "/")
 }
 
