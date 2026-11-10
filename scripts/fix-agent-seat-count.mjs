@@ -1,51 +1,40 @@
 #!/usr/bin/env node
-/** After revoke, KV.list can briefly still return deleted keys. Count only keys that still GET. */
+/** Count only agentmeta keys that still exist (KV.list can lag after delete). */
 import fs from "fs";
 
 const file = process.argv[2] || "worker.js";
 let s = fs.readFileSync(file, "utf8");
 
-const old = `  const existing = await KV.list({ prefix: \`agentmeta:${session.tenantId}:\`, limit: MAX_AGENTS_PER_TENANT + 1 });
-  if (existing.keys.length >= sub.agentSeats) {
-    throw new HttpError(400, \`Plan allows ${sub.agentSeats} desktop agent(s). Revoke one or upgrade.\`);
-  }`;
+if (s.includes("liveAgentCount")) {
+  console.log("already patched");
+  process.exit(0);
+}
 
-const neu = `  const existing = await KV.list({ prefix: \`agentmeta:${session.tenantId}:\`, limit: MAX_AGENTS_PER_TENANT + 1 });
-  // KV.list is eventually consistent — verify each key still exists after revoke.
-  let liveAgentCount = 0;
-  const staleKeys = [];
-  for (const k of existing.keys) {
-    const still = await KV.get(k.name);
-    if (still) liveAgentCount++;
-    else staleKeys.push(k.name);
-  }
-  for (const sk of staleKeys) {
-    try { await KV.delete(sk); } catch (_) {}
-  }
-  if (liveAgentCount >= sub.agentSeats) {
-    throw new HttpError(400, \`Plan allows ${sub.agentSeats} desktop agent(s). Revoke one or upgrade.\`);
-  }`;
-
-if (!s.includes("const existing = await KV.list({ prefix: `agentmeta:${session.tenantId}:`")) {
-  console.error("seat-count list block not found");
+const marker = "const existing = await KV.list({ prefix: `agentmeta:${session.tenantId}:`, limit: MAX_AGENTS_PER_TENANT + 1 });";
+const idx = s.indexOf(marker);
+if (idx < 0) {
+  console.error("list marker not found");
   process.exit(1);
 }
 
-if (s.includes("liveAgentCount")) {
-  console.log("already patched");
-} else if (s.includes(old)) {
-  s = s.replace(old, neu);
-  console.log("patched exact block");
-} else {
-  // flexible
-  const re = /const existing = await KV\.list\(\{ prefix: `agentmeta:\$\{session\.tenantId\}:`, limit: MAX_AGENTS_PER_TENANT \+ 1 \}\);\s*if \(existing\.keys\.length >= sub\.agentSeats\) \{\s*throw new HttpError\(400, `Plan allows \$\{sub\.agentSeats\} desktop agent\(s\)\. Revoke one or upgrade\.`);\s*\}/;
-  if (!re.test(s)) {
-    console.error("flexible match failed");
-    process.exit(1);
-  }
-  s = s.replace(re, neu.trim());
-  console.log("patched flexible");
+const after = s.indexOf("const id = \"ag_\" + randomHex(8);", idx);
+if (after < 0) {
+  console.error("id marker not found");
+  process.exit(1);
 }
 
+const replacement =
+  marker +
+  "\n  // KV.list is eventually consistent — only count keys that still GET.\n" +
+  "  let liveAgentCount = 0;\n" +
+  "  for (const k of existing.keys) {\n" +
+  "    if (await KV.get(k.name)) liveAgentCount++;\n" +
+  "    else { try { await KV.delete(k.name); } catch (_) {} }\n" +
+  "  }\n" +
+  "  if (liveAgentCount >= sub.agentSeats) {\n" +
+  "    throw new HttpError(400, `Plan allows ${sub.agentSeats} desktop agent(s). Revoke one or upgrade.`);\n" +
+  "  }\n  ";
+
+s = s.slice(0, idx) + replacement + s.slice(after);
 fs.writeFileSync(file, s);
-console.log("done", s.length);
+console.log("patched seat count", s.length);
