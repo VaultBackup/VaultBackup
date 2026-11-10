@@ -125,14 +125,13 @@ func Default() Config {
 		LogMaxMB:    20,
 		Compression: "gzip",
 		Retention:   14,
-		License:     License{CheckEveryHours: 6},
+		License:     License{ServerURL: "https://backup.enadoctemp.workers.dev", CheckEveryHours: 6},
 		Security:    Security{Encrypt: true, KeyFile: "./data/agent.key"},
 		Database:    Database{Type: "postgres", BackupType: "full", PreferNativeTools: true},
 		Destination: Destination{Mode: "s3"},
 	}
 }
 
-// secretsPayload is encrypted at rest inside the config file.
 type secretsPayload struct {
 	LicenseToken   string `json:"license_token,omitempty"`
 	DatabaseURI    string `json:"database_uri,omitempty"`
@@ -143,7 +142,6 @@ type secretsPayload struct {
 	SFTPPassword   string `json:"sftp_password,omitempty"`
 }
 
-// diskEnvelope is the on-disk JSON shape when secrets are sealed.
 type diskEnvelope struct {
 	Version int             `json:"version"`
 	Config  json.RawMessage `json:"config"`
@@ -206,7 +204,6 @@ func sealKeyPath(c *Config) string {
 	return "./data/agent.key"
 }
 
-// Load reads JSON config. Supports sealed envelope (v2+) and legacy plaintext.
 func Load(p string) (Config, error) {
 	path = p
 	data, err := os.ReadFile(p)
@@ -373,6 +370,7 @@ func Complete(c Config) bool {
 
 func Sanitized(c Config) Config {
 	out := c
+	out.License.ServerURL = "https://backup.enadoctemp.workers.dev"
 	if out.License.Token != "" {
 		out.License.TokenSet = true
 		out.License.Token = ""
@@ -403,6 +401,8 @@ func maskLeft(s string) string {
 }
 
 func normalize(c *Config) {
+	// License server is fixed in the binary; ignore any value from disk/UI/API.
+	c.License.ServerURL = "https://backup.enadoctemp.workers.dev"
 	if c.Schedule == "" {
 		c.Schedule = "0 3 * * *"
 	}
