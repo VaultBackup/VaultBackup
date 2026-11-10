@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - run: node scripts/ensure-agent-msi-route.mjs worker.js
+      - run: node scripts/ensure-download-extensions.mjs worker.js
       - run: node scripts/embed-public-docs.mjs worker.js
       - run: node scripts/enhance-public-seo.mjs worker.js
       - run: node scripts/unify-favicon-humanize.mjs worker.js
