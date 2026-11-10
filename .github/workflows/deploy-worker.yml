@@ -34,6 +34,7 @@ jobs:
       - run: node scripts/fix-favicon-csp.mjs worker.js
       - run: node scripts/polish-connect-db-modal.mjs worker.js
       - run: node scripts/connect-db-wizard.mjs worker.js
+      - run: node scripts/redesign-connect-db.mjs worker.js
 
       - name: Syntax check
         run: node --check worker.js
