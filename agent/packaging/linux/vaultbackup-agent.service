@@ -1,0 +1,24 @@
+[Unit]
+Description=VaultBackup Desktop Agent
+Documentation=https://backup.enadoctemp.workers.dev/install
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vaultbackup
+EnvironmentFile=-/etc/vaultbackup/agent.env
+ExecStart=/opt/vaultbackup/vaultbackup-agent -config /etc/vaultbackup/config.yaml -webui 0.0.0.0:8787 -webui-password ${WEBUI_PASSWORD}
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/vaultbackup /etc/vaultbackup /var/lib/vaultbackup
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
