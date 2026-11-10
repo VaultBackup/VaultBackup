@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Ensure agent download filenames include clear extensions (esp. Linux/macOS). */
+/** Agent downloads: Linux/macOS save as .bin; Windows keep .msi/.exe. */
 import fs from "fs";
 
 const file = process.argv[2] || "worker.js";
@@ -21,17 +21,17 @@ if (!re.test(s)) {
   process.exit(1);
 }
 s = s.replace(re, desired);
-console.log("AGENT_BINARIES updated with downloadName");
+console.log("AGENT_BINARIES set");
 
-// Content-Disposition should prefer downloadName || file
-const oldDisp = [
-  `'attachment; filename="' + meta.file + '"'`,
-  `"attachment; filename=\"" + meta.file + "\""`,
-  'attachment; filename="' + "' + meta.file + '"',
-];
+// Replace any Content-Disposition that only uses meta.file
+const before = s;
+s = s.replace(
+  /Content-Disposition"\s*:\s*[`'"]attachment; filename="['"`]\s*\+\s*meta\.file\s*\+\s*[`'"]["'`][`'"]/g,
+  'Content-Disposition": "attachment; filename=\"" + (meta.downloadName || meta.file) + "\""'
+);
 
-// Common patterns in worker
-const patterns = [
+// More patterns
+const replacements = [
   [
     "'attachment; filename=\"' + meta.file + '\"'",
     "'attachment; filename=\"' + (meta.downloadName || meta.file) + '\"'",
@@ -41,55 +41,68 @@ const patterns = [
     '"attachment; filename=\"" + (meta.downloadName || meta.file) + "\""',
   ],
   [
-    "attachment; filename=\"" + meta.file + "\"",
-    "attachment; filename=\"" + (meta.downloadName || meta.file) + "\"",
+    "`attachment; filename=\"${meta.file}\"`",
+    "`attachment; filename=\"${meta.downloadName || meta.file}\"`",
+  ],
+  [
+    'attachment; filename="' + meta.file + '"',
+    'attachment; filename="' + (meta.downloadName || meta.file) + '"',
   ],
 ];
 
-let n = 0;
-for (const [a, b] of patterns) {
+for (const [a, b] of replacements) {
   if (s.includes(a)) {
     s = s.replaceAll(a, b);
-    n++;
-    console.log("patched disposition pattern");
+    console.log("replaced disposition:", a.slice(0, 50));
   }
 }
 
-// Broader replace for Content-Disposition lines using meta.file only
-if (s.includes("Content-Disposition") && s.includes("meta.file") && !s.includes("meta.downloadName")) {
-  s = s.replace(
-    /Content-Disposition":\s*['"]attachment; filename="['"]\s*\+\s*meta\.file\s*\+\s*['"]["']['"]/g,
-    'Content-Disposition": \'attachment; filename="\' + (meta.downloadName || meta.file) + \'"\''
-  );
-  // simpler line-level
-  s = s.replace(
-    /("Content-Disposition":\s*)('attachment; filename="' \+ meta\.file \+ '"')/g,
-    "$1'attachment; filename="' + (meta.downloadName || meta.file) + '"'"
-  );
-  s = s.replace(
-    /("Content-Disposition":\s*)("attachment; filename=\"" \+ meta\.file \+ "\"")/g,
-    '$1"attachment; filename=\"" + (meta.downloadName || meta.file) + "\""'
-  );
+// Last resort: inside handleAgentBinaryDownload, replace meta.file in disposition only
+if (s.includes("handleAgentBinaryDownload") && s.includes("Content-Disposition")) {
+  // Replace occurrences of filename=" + meta.file within ~2k after function start
+  const fn = s.indexOf("handleAgentBinaryDownload");
+  const slice = s.slice(fn, fn + 3500);
+  if (slice.includes("meta.file") && !slice.includes("meta.downloadName")) {
+    let updated = slice.replace(
+      /filename="'\s*\+\s*meta\.file/g,
+      "filename=\"' + (meta.downloadName || meta.file)"
+    );
+    updated = updated.replace(
+      /filename=\""\s*\+\s*meta\.file/g,
+      'filename=\"" + (meta.downloadName || meta.file)'
+    );
+    updated = updated.replace(
+      /filename="\s*"\s*\+\s*meta\.file/g,
+      'filename=" + (meta.downloadName || meta.file)'
+    );
+    // generic: ' + meta.file + '"' after filename=
+    updated = updated.replace(
+      /(filename=")('\s*\+\s*)meta\.file(\s*\+\s*')(")/g,
+      "$1$2(meta.downloadName || meta.file)$3$4"
+    );
+    s = s.slice(0, fn) + updated + s.slice(fn + 3500);
+    console.log("patched handleAgentBinaryDownload slice");
+  }
 }
 
-// Install page hints: mention .bin for unix downloads in pre blocks if present
-s = s.replaceAll(
-  "chmod +x vaultbackup-agent-linux-amd64",
-  "chmod +x vaultbackup-agent-linux-amd64.bin"
-);
-s = s.replaceAll(
-  "./vaultbackup-agent-linux-amd64 --webui",
-  "./vaultbackup-agent-linux-amd64.bin -webui"
-);
-s = s.replaceAll(
-  "./vaultbackup-agent-linux-amd64 -webui",
-  "./vaultbackup-agent-linux-amd64.bin -webui"
-);
-// Generic pre sample
-s = s.replaceAll(
-  "chmod +x vaultbackup-agent-linux-amd64   # or darwin-arm64, etc.\n./vaultbackup-agent-linux-amd64 --webui 127.0.0.1:8787",
-  "chmod +x vaultbackup-agent-linux-amd64.bin   # or darwin-arm64.bin, etc.\n./vaultbackup-agent-linux-amd64.bin -webui 127.0.0.1:8787"
+// Nuclear option: any remaining attachment filename concat with meta.file
+s = s.replace(
+  /(attachment; filename=")(['"`]?)(\'?"?\s*\+\s*)meta\.file/g,
+  "$1$2$3(meta.downloadName || meta.file)"
 );
 
+// Install docs
+s = s.replaceAll("chmod +x vaultbackup-agent-linux-amd64", "chmod +x vaultbackup-agent-linux-amd64.bin");
+s = s.replaceAll("./vaultbackup-agent-linux-amd64 --webui", "./vaultbackup-agent-linux-amd64.bin -webui");
+s = s.replaceAll("./vaultbackup-agent-linux-amd64 -webui", "./vaultbackup-agent-linux-amd64.bin -webui");
+
+if (before === s) console.log("warning: no disposition text changed (map may still be enough if code already uses downloadName)");
+
 fs.writeFileSync(file, s);
-console.log("download extensions done", n, s.length);
+console.log("done", s.length);
+
+// Verify map has .bin downloadNames
+if (!s.includes('downloadName: "vaultbackup-agent-linux-amd64.bin"')) {
+  console.error("linux downloadName missing after write");
+  process.exit(1);
+}
