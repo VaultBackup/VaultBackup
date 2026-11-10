@@ -34,6 +34,7 @@ jobs:
       - run: node scripts/polish-dashboard-header.mjs worker.js
       - run: node scripts/fix-favicon-csp.mjs worker.js
       - run: node scripts/structural-connect-db.mjs worker.js
+      - run: node scripts/fix-agent-seat-count.mjs worker.js
 
       - name: Syntax check
         run: node --check worker.js
