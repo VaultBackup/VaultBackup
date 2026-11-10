@@ -1,7 +1,7 @@
 package webui
 
-// EmbeddedUI is the agent dashboard. CSP-safe only (no inline handlers/styles).
-// License server URL is hardcoded in the binary and never shown as editable.
+// EmbeddedUI is the agent dashboard. CSP-safe (no inline handlers/styles).
+// License server URL is fixed in the binary and not user-editable.
 const EmbeddedUI = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,135 +11,255 @@ const EmbeddedUI = `<!DOCTYPE html>
 <link rel="icon" type="image/png" href="/icon.png"/>
 <style>
 :root{
-  --bg:#070d18;--card:#0f172a;--card2:#111c31;--line:#1e293b;--line2:#334155;
-  --text:#f1f5f9;--muted:#94a3b8;--brand:#16a34a;--brand2:#15803d;--brand-soft:rgba(22,163,74,.14);
-  --warn:#f59e0b;--bad:#ef4444;--ok:#4ade80;
+  --bg:#050a12;
+  --surface:#0b1220;
+  --surface2:#0f1829;
+  --elev:#121c30;
+  --line:rgba(148,163,184,.12);
+  --line2:rgba(148,163,184,.22);
+  --text:#f8fafc;
+  --muted:#94a3b8;
+  --dim:#64748b;
+  --brand:#22c55e;
+  --brand-d:#16a34a;
+  --brand-glow:rgba(34,197,94,.18);
+  --ok:#4ade80;
+  --warn:#fbbf24;
+  --bad:#f87171;
+  --radius:16px;
+  --shadow:0 18px 50px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(1200px 600px at 10% -10%,#122033 0%,var(--bg) 55%);color:var(--text);min-height:100vh}
-.wrap{max-width:920px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
-.hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1.25rem}
-.brand{display:flex;align-items:center;gap:.75rem}
-.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#16a34a,#0f766e);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;box-shadow:0 8px 24px rgba(22,163,74,.25)}
-h1{font-size:1.35rem;margin:0 0 .2rem;letter-spacing:-.02em}
-.sub{color:var(--muted);font-size:.88rem;margin:0}
-.pill{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:999px;font-size:.72rem;font-weight:700;border:1px solid var(--line);background:#0b1322;color:var(--muted)}
-.pill.ok{color:var(--ok);border-color:rgba(74,222,128,.35);background:rgba(22,163,74,.12)}
-.pill.warn{color:#fbbf24;border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.1)}
-.steps{display:flex;flex-wrap:wrap;gap:.45rem;margin:0 0 1.15rem}
-.step{border:1px solid var(--line);background:#0b1322;color:#64748b;border-radius:999px;padding:.42rem .85rem;font-size:.78rem;font-weight:700;cursor:pointer;transition:.15s ease}
-.step:hover{border-color:var(--line2);color:#cbd5e1}
-.step.on{border-color:rgba(34,197,94,.45);background:var(--brand-soft);color:#bbf7d0}
+html,body{margin:0;padding:0}
+body{
+  min-height:100vh;
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text);
+  background:
+    radial-gradient(900px 420px at 0% -10%, rgba(34,197,94,.12), transparent 55%),
+    radial-gradient(700px 360px at 100% 0%, rgba(14,165,233,.08), transparent 50%),
+    linear-gradient(180deg,#071018 0%, var(--bg) 40%);
+}
+.shell{max-width:980px;margin:0 auto;padding:1.4rem 1.2rem 3rem}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  padding:.9rem 1.1rem;margin-bottom:1.2rem;
+  background:rgba(11,18,32,.82);border:1px solid var(--line);border-radius:18px;
+  backdrop-filter:blur(12px);box-shadow:var(--shadow);
+}
+.brand{display:flex;align-items:center;gap:.8rem;min-width:0}
+.mark{
+  width:42px;height:42px;border-radius:13px;flex:0 0 auto;
+  display:grid;place-items:center;font-weight:800;letter-spacing:.02em;font-size:.82rem;
+  background:linear-gradient(145deg,#22c55e 0%,#0f766e 100%);
+  box-shadow:0 10px 28px rgba(34,197,94,.28), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.title h1{margin:0;font-size:1.15rem;font-weight:750;letter-spacing:-.03em}
+.title p{margin:.15rem 0 0;color:var(--muted);font-size:.8rem}
+.badge{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.38rem .75rem;border-radius:999px;font-size:.72rem;font-weight:700;
+  border:1px solid var(--line);background:rgba(15,23,42,.9);color:var(--muted);
+}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.badge.ok{color:var(--ok);border-color:rgba(74,222,128,.28);background:rgba(22,163,74,.1)}
+.badge.ok::before{background:var(--ok);box-shadow:0 0 0 4px rgba(74,222,128,.12)}
+.badge.warn{color:var(--warn);border-color:rgba(251,191,36,.28);background:rgba(245,158,11,.1)}
+.badge.warn::before{background:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.15rem}
+@media(max-width:760px){.stats{grid-template-columns:1fr}.topbar{flex-direction:column;align-items:flex-start}}
+.stat{
+  background:linear-gradient(180deg,rgba(18,28,48,.95),rgba(11,18,32,.95));
+  border:1px solid var(--line);border-radius:14px;padding:.9rem 1rem;
+}
+.stat .k{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.stat .v{margin-top:.35rem;font-size:.98rem;font-weight:700;color:#e2e8f0}
+.rail{
+  display:flex;gap:.4rem;padding:.35rem;margin-bottom:1.15rem;
+  background:rgba(11,18,32,.75);border:1px solid var(--line);border-radius:999px;
+}
+@media(max-width:760px){.rail{border-radius:16px;flex-wrap:wrap}}
+.step{
+  flex:1;min-width:110px;border:0;cursor:pointer;
+  background:transparent;color:var(--dim);border-radius:999px;
+  padding:.55rem .7rem;font-size:.78rem;font-weight:700;transition:.18s ease;
+}
+.step:hover{color:#cbd5e1;background:rgba(148,163,184,.06)}
+.step.on{background:var(--brand-glow);color:#bbf7d0;box-shadow:inset 0 0 0 1px rgba(34,197,94,.35)}
 .step.done{color:#86efac}
-.card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:16px;padding:1.15rem 1.25rem;margin-bottom:1rem;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-h2{font-size:1rem;margin:0 0 .85rem;color:#e2e8f0;font-weight:700}
-label{display:block;font-size:.78rem;color:#cbd5e1;margin:.6rem 0 .28rem;font-weight:600}
-input,select,textarea{width:100%;background:#060b14;border:1px solid var(--line);border-radius:11px;padding:.7rem .85rem;color:var(--text);font-size:.9rem;outline:none;transition:border-color .15s,box-shadow .15s}
-input:focus,select:focus,textarea:focus{border-color:rgba(34,197,94,.55);box-shadow:0 0 0 3px rgba(22,163,74,.15)}
-textarea{min-height:5.2rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;resize:vertical}
+.card{
+  background:linear-gradient(180deg,rgba(18,28,48,.98),rgba(11,18,32,.98));
+  border:1px solid var(--line);border-radius:var(--radius);padding:1.25rem 1.3rem 1.15rem;
+  margin-bottom:1rem;box-shadow:var(--shadow);
+}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.card-head h2{margin:0;font-size:1.02rem;font-weight:750;letter-spacing:-.02em}
+.card-head p{margin:.25rem 0 0;color:var(--muted);font-size:.8rem;line-height:1.4}
+.sec{font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin:1rem 0 .45rem}
+label{display:block;font-size:.78rem;font-weight:650;color:#cbd5e1;margin:0 0 .32rem}
+.field{margin-bottom:.85rem}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
-@media(max-width:720px){.row{grid-template-columns:1fr}.hdr{flex-direction:column}}
-.hint{color:var(--muted);font-size:.78rem;margin-top:.35rem;line-height:1.4}
-.note{display:flex;gap:.55rem;align-items:flex-start;background:rgba(15,23,42,.8);border:1px solid var(--line);border-radius:12px;padding:.7rem .85rem;margin:.75rem 0 .25rem}
-.note strong{color:#e2e8f0;font-size:.8rem}
-.note span{color:var(--muted);font-size:.78rem;display:block;margin-top:.15rem}
-.lock{font-size:.95rem;line-height:1}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;border:0;border-radius:11px;padding:.65rem 1.05rem;font-weight:700;font-size:.85rem;cursor:pointer;transition:.15s}
-.btn-primary{background:linear-gradient(180deg,#22c55e,#16a34a);color:#fff;box-shadow:0 8px 20px rgba(22,163,74,.25)}
+@media(max-width:760px){.row{grid-template-columns:1fr}}
+input,select,textarea{
+  width:100%;background:#070d18;border:1px solid var(--line);border-radius:12px;
+  color:var(--text);padding:.72rem .88rem;font-size:.9rem;outline:none;
+  transition:border-color .15s, box-shadow .15s, background .15s;
+}
+input::placeholder,textarea::placeholder{color:#475569}
+input:hover,select:hover,textarea:hover{border-color:var(--line2)}
+input:focus,select:focus,textarea:focus{
+  border-color:rgba(34,197,94,.55);
+  box-shadow:0 0 0 4px rgba(34,197,94,.12);
+  background:#080f1a;
+}
+textarea{min-height:5.4rem;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;line-height:1.45}
+.hint{color:var(--dim);font-size:.76rem;margin-top:.35rem;line-height:1.4}
+.callout{
+  display:flex;gap:.7rem;align-items:flex-start;
+  background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);
+  border-radius:13px;padding:.8rem .9rem;margin:.2rem 0 1rem;
+}
+.callout .ic{
+  width:28px;height:28px;border-radius:8px;flex:0 0 auto;
+  display:grid;place-items:center;background:rgba(34,197,94,.15);color:#86efac;font-size:.85rem;
+}
+.callout strong{display:block;font-size:.82rem;color:#e2e8f0;margin-bottom:.15rem}
+.callout span{display:block;font-size:.76rem;color:var(--muted);line-height:1.4}
+.presets{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 .75rem}
+.preset{
+  border:1px solid var(--line);background:#0a1322;color:var(--muted);
+  border-radius:999px;padding:.34rem .72rem;font-size:.72rem;font-weight:700;cursor:pointer;
+}
+.preset:hover,.preset.on{color:#bbf7d0;border-color:rgba(34,197,94,.4);background:var(--brand-glow)}
+.check{display:flex;align-items:center;gap:.55rem;margin:.4rem 0 0;color:#cbd5e1;font-size:.86rem}
+.check input{width:auto;accent-color:var(--brand)}
+.actions,.nav{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:1.05rem}
+.nav{justify-content:space-between;align-items:center}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+  border:0;border-radius:12px;padding:.68rem 1.1rem;font-size:.85rem;font-weight:750;cursor:pointer;
+  transition:transform .12s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+}
+.btn:active{transform:translateY(1px)}
+.btn-primary{
+  color:#fff;background:linear-gradient(180deg,#4ade80 0%, var(--brand) 45%, var(--brand-d) 100%);
+  box-shadow:0 10px 24px rgba(22,163,74,.28), inset 0 1px 0 rgba(255,255,255,.2);
+}
 .btn-primary:hover{filter:brightness(1.05)}
-.btn-ghost{background:transparent;border:1px solid var(--line);color:#cbd5e1}
-.btn-ghost:hover{border-color:var(--line2);background:rgba(148,163,184,.06)}
-.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
-.nav{display:flex;justify-content:space-between;gap:.5rem;margin-top:1rem}
+.btn-ghost{color:#cbd5e1;background:transparent;border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--line2);background:rgba(148,163,184,.05)}
 .panel{display:none}
-.panel.on{display:block}
+.panel.on{display:block;animation:in .22s ease}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .hidden{display:none !important}
-.presets{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 .25rem}
-.preset{border:1px solid var(--line);background:#0b1322;color:#94a3b8;border-radius:999px;padding:.3rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer}
-.preset:hover,.preset.on{border-color:rgba(34,197,94,.4);color:#bbf7d0;background:var(--brand-soft)}
-.check{display:flex;align-items:center;gap:.5rem;margin-top:.85rem;font-size:.85rem;color:#cbd5e1}
-.check input{width:auto}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;margin-bottom:1rem}
-@media(max-width:720px){.kpis{grid-template-columns:1fr}}
-.kpi{background:rgba(15,23,42,.9);border:1px solid var(--line);border-radius:14px;padding:.8rem .9rem}
-.kpi .l{font-size:.7rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-.kpi .v{font-size:.95rem;font-weight:700;margin-top:.25rem;color:#e2e8f0}
-.review{font-family:ui-monospace,monospace;font-size:.8rem;line-height:1.55;color:#cbd5e1;background:#060b14;border:1px solid var(--line);border-radius:12px;padding:.85rem;white-space:pre-wrap}
-pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-height:220px;overflow:auto}
-.hist-row{display:flex;gap:.5rem;align-items:center;padding:.45rem 0;border-bottom:1px solid rgba(30,41,59,.8);font-size:.82rem;color:#cbd5e1}
+.review{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;line-height:1.6;
+  color:#cbd5e1;background:#070d18;border:1px solid var(--line);border-radius:12px;padding:1rem;white-space:pre-wrap;
+}
+pre.status{
+  margin:0;white-space:pre-wrap;font-size:.76rem;line-height:1.5;color:var(--muted);
+  max-height:220px;overflow:auto;background:#070d18;border:1px solid var(--line);border-radius:12px;padding:.9rem;
+}
+.hist-row{
+  display:flex;gap:.55rem;align-items:center;padding:.55rem 0;
+  border-bottom:1px solid rgba(30,41,59,.7);font-size:.82rem;color:#cbd5e1;
+}
 .hist-row:last-child{border-bottom:0}
-.toast{position:fixed;right:1rem;bottom:1rem;background:#0f172a;border:1px solid var(--line);padding:.75rem 1rem;border-radius:12px;z-index:50;box-shadow:0 12px 40px rgba(0,0,0,.35);max-width:320px}
+.tag{
+  display:inline-flex;padding:.16rem .45rem;border-radius:999px;font-size:.68rem;font-weight:700;
+  border:1px solid var(--line);background:#0a1322;color:var(--muted);
+}
+.toast{
+  position:fixed;right:1rem;bottom:1rem;z-index:50;max-width:340px;
+  background:rgba(15,23,42,.96);border:1px solid var(--line);border-radius:14px;
+  padding:.85rem 1rem;box-shadow:var(--shadow);backdrop-filter:blur(10px);
+}
 .toast.hidden{display:none !important}
-.toast.ok{border-color:rgba(22,163,74,.5)}
-.toast.bad{border-color:rgba(239,68,68,.5)}
+.toast.ok{border-color:rgba(34,197,94,.45)}
+.toast.bad{border-color:rgba(248,113,113,.45)}
+.foot{margin-top:1.2rem;text-align:center;color:var(--dim);font-size:.74rem}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="hdr">
+<div class="shell">
+  <header class="topbar">
     <div class="brand">
-      <div class="logo">VB</div>
-      <div>
+      <div class="mark">VB</div>
+      <div class="title">
         <h1>VaultBackup Agent</h1>
-        <p class="sub">Backup private databases to your own disk or cloud storage</p>
+        <p>Private database backups to your own storage</p>
       </div>
     </div>
-    <div id="status-pill" class="pill">Loading</div>
-  </div>
+    <div id="status-pill" class="badge">Loading</div>
+  </header>
 
-  <div class="kpis">
-    <div class="kpi"><div class="l">License</div><div class="v" id="kpi-lic">—</div></div>
-    <div class="kpi"><div class="l">Database</div><div class="v" id="kpi-db">—</div></div>
-    <div class="kpi"><div class="l">Schedule</div><div class="v" id="kpi-sch">—</div></div>
-  </div>
+  <section class="stats">
+    <div class="stat"><div class="k">License</div><div class="v" id="kpi-lic">—</div></div>
+    <div class="stat"><div class="k">Database</div><div class="v" id="kpi-db">—</div></div>
+    <div class="stat"><div class="k">Schedule</div><div class="v" id="kpi-sch">—</div></div>
+  </section>
 
-  <div class="steps" id="steps">
-    <button type="button" class="step on" data-step="1">1 Token</button>
-    <button type="button" class="step" data-step="2">2 Database</button>
-    <button type="button" class="step" data-step="3">3 Destination</button>
-    <button type="button" class="step" data-step="4">4 Review</button>
-  </div>
+  <nav class="rail" id="steps">
+    <button type="button" class="step on" data-step="1">1 · Token</button>
+    <button type="button" class="step" data-step="2">2 · Database</button>
+    <button type="button" class="step" data-step="3">3 · Destination</button>
+    <button type="button" class="step" data-step="4">4 · Review</button>
+  </nav>
 
   <form id="cfg-form">
     <div class="panel on" data-panel="1">
       <div class="card">
-        <h2>Token and schedule</h2>
-        <label for="name">Agent name</label>
-        <input id="name" placeholder="office-linux-1" autocomplete="off"/>
-        <div class="row">
+        <div class="card-head">
           <div>
+            <h2>Token and schedule</h2>
+            <p>Name this agent, set when backups run, and paste your desktop token.</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="name">Agent name</label>
+          <input id="name" placeholder="office-linux-1" autocomplete="off"/>
+        </div>
+        <div class="row">
+          <div class="field">
             <label for="schedule">Schedule (cron)</label>
             <input id="schedule" placeholder="0 3 * * *"/>
             <div class="hint">Example: daily at 03:00 UTC</div>
           </div>
-          <div>
+          <div class="field">
             <label for="retention">Retention (days)</label>
             <input id="retention" type="number" min="1" value="14"/>
           </div>
         </div>
-        <div class="note">
-          <div class="lock">🔒</div>
+        <div class="callout">
+          <div class="ic">✓</div>
           <div>
             <strong>License server is fixed in this agent</strong>
-            <span>https://backup.enadoctemp.workers.dev · cannot be changed</span>
+            <span>https://backup.enadoctemp.workers.dev · cannot be changed from the UI or config</span>
           </div>
         </div>
-        <label for="token">Agent token</label>
-        <input id="token" type="password" placeholder="Paste token from the cloud dashboard (leave blank to keep)" autocomplete="off"/>
-        <div class="hint">Create a token under Desktop Agents in the VaultBackup dashboard.</div>
+        <div class="field">
+          <label for="token">Agent token</label>
+          <input id="token" type="password" placeholder="Paste token from the cloud dashboard (leave blank to keep)" autocomplete="off"/>
+          <div class="hint">Create a token under Desktop Agents in the VaultBackup dashboard.</div>
+        </div>
         <div class="nav">
           <span></span>
-          <button type="button" class="btn btn-primary" id="next-1">Continue to database</button>
+          <button type="button" class="btn btn-primary" id="next-1">Continue</button>
         </div>
       </div>
     </div>
 
     <div class="panel" data-panel="2">
       <div class="card">
-        <h2>Database</h2>
-        <div class="row">
+        <div class="card-head">
           <div>
-            <label for="db_type">Type</label>
+            <h2>Database connection</h2>
+            <p>Point the agent at a database reachable from this machine.</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="db_type">Engine</label>
             <select id="db_type">
               <option value="postgres">PostgreSQL</option>
               <option value="mysql">MySQL / MariaDB</option>
@@ -148,7 +268,7 @@ pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-heig
               <option value="sqlite">SQLite / Turso</option>
             </select>
           </div>
-          <div>
+          <div class="field">
             <label for="backup_type">Backup type</label>
             <select id="backup_type">
               <option value="full">Full</option>
@@ -156,32 +276,44 @@ pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-heig
             </select>
           </div>
         </div>
-        <label for="db_uri">Connection URI</label>
-        <textarea id="db_uri" placeholder="postgres://user:pass@host:5432/db?sslmode=require"></textarea>
-        <div class="hint" id="uri_hint">Host must be reachable from this machine (LAN or public).</div>
+        <div class="field">
+          <label for="db_uri">Connection URI</label>
+          <textarea id="db_uri" placeholder="postgres://user:pass@host:5432/db?sslmode=require"></textarea>
+          <div class="hint" id="uri_hint">Host must be reachable from this machine (LAN or public).</div>
+        </div>
         <div class="nav">
           <button type="button" class="btn btn-ghost" id="back-2">Back</button>
-          <button type="button" class="btn btn-primary" id="next-2">Continue to destination</button>
+          <button type="button" class="btn btn-primary" id="next-2">Continue</button>
         </div>
       </div>
     </div>
 
     <div class="panel" data-panel="3">
       <div class="card">
-        <h2>Destination</h2>
-        <label for="dest_mode">Storage mode</label>
-        <select id="dest_mode">
-          <option value="local">Local disk</option>
-          <option value="s3">S3 compatible (AWS, B2, Wasabi, R2)</option>
-          <option value="azure">Azure Blob</option>
-          <option value="webdav">WebDAV / NAS</option>
-          <option value="sftp">SFTP</option>
-        </select>
+        <div class="card-head">
+          <div>
+            <h2>Backup destination</h2>
+            <p>Store backups on local disk or your own S3-compatible bucket.</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="dest_mode">Storage mode</label>
+          <select id="dest_mode">
+            <option value="local">Local disk</option>
+            <option value="s3">S3 compatible (AWS, B2, Wasabi, R2)</option>
+            <option value="azure">Azure Blob</option>
+            <option value="webdav">WebDAV / NAS</option>
+            <option value="sftp">SFTP</option>
+          </select>
+        </div>
         <div id="dest-local">
-          <label for="local_dir">Local directory</label>
-          <input id="local_dir" placeholder="/var/lib/vaultbackup/backups"/>
+          <div class="field">
+            <label for="local_dir">Local directory</label>
+            <input id="local_dir" placeholder="/var/lib/vaultbackup/backups"/>
+          </div>
         </div>
         <div id="dest-s3" class="hidden">
+          <div class="sec">Provider presets</div>
           <div class="presets" id="s3-presets">
             <button type="button" class="preset" data-preset="aws">AWS S3</button>
             <button type="button" class="preset" data-preset="b2">Backblaze B2</button>
@@ -189,56 +321,60 @@ pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-heig
             <button type="button" class="preset" data-preset="r2">Cloudflare R2</button>
           </div>
           <div class="row">
-            <div><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint" placeholder="https://s3.amazonaws.com"/></div>
-            <div><label for="s3_region">Region</label><input id="s3_region" placeholder="us-east-1"/></div>
+            <div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint" placeholder="https://s3.amazonaws.com"/></div>
+            <div class="field"><label for="s3_region">Region</label><input id="s3_region" placeholder="us-east-1"/></div>
           </div>
           <div class="row">
-            <div><label for="s3_bucket">Bucket</label><input id="s3_bucket"/></div>
-            <div><label for="s3_prefix">Prefix</label><input id="s3_prefix" placeholder="backups/"/></div>
+            <div class="field"><label for="s3_bucket">Bucket</label><input id="s3_bucket"/></div>
+            <div class="field"><label for="s3_prefix">Prefix</label><input id="s3_prefix" placeholder="backups/"/></div>
           </div>
           <div class="row">
-            <div><label for="s3_access_key">Access key / Key ID</label><input id="s3_access_key"/></div>
-            <div><label for="s3_secret_key">Secret key</label><input id="s3_secret_key" type="password" placeholder="Leave blank to keep"/></div>
+            <div class="field"><label for="s3_access_key">Access key / Key ID</label><input id="s3_access_key"/></div>
+            <div class="field"><label for="s3_secret_key">Secret key</label><input id="s3_secret_key" type="password" placeholder="Leave blank to keep"/></div>
           </div>
         </div>
         <div id="dest-azure" class="hidden">
           <div class="row">
-            <div><label for="azure_account">Account</label><input id="azure_account"/></div>
-            <div><label for="azure_container">Container</label><input id="azure_container"/></div>
+            <div class="field"><label for="azure_account">Account</label><input id="azure_account"/></div>
+            <div class="field"><label for="azure_container">Container</label><input id="azure_container"/></div>
           </div>
-          <label for="azure_key">Key</label><input id="azure_key" type="password" placeholder="Leave blank to keep"/>
-          <label for="azure_prefix">Prefix</label><input id="azure_prefix"/>
+          <div class="field"><label for="azure_key">Key</label><input id="azure_key" type="password" placeholder="Leave blank to keep"/></div>
+          <div class="field"><label for="azure_prefix">Prefix</label><input id="azure_prefix"/></div>
         </div>
         <div id="dest-webdav" class="hidden">
-          <label for="webdav_url">WebDAV URL</label><input id="webdav_url"/>
+          <div class="field"><label for="webdav_url">WebDAV URL</label><input id="webdav_url"/></div>
           <div class="row">
-            <div><label for="webdav_user">User</label><input id="webdav_user"/></div>
-            <div><label for="webdav_password">Password</label><input id="webdav_password" type="password"/></div>
+            <div class="field"><label for="webdav_user">User</label><input id="webdav_user"/></div>
+            <div class="field"><label for="webdav_password">Password</label><input id="webdav_password" type="password"/></div>
           </div>
         </div>
         <div id="dest-sftp" class="hidden">
           <div class="row">
-            <div><label for="sftp_host">Host</label><input id="sftp_host"/></div>
-            <div><label for="sftp_user">User</label><input id="sftp_user"/></div>
+            <div class="field"><label for="sftp_host">Host</label><input id="sftp_host"/></div>
+            <div class="field"><label for="sftp_user">User</label><input id="sftp_user"/></div>
           </div>
-          <label for="sftp_path">Path</label><input id="sftp_path" placeholder="/backups"/>
+          <div class="field"><label for="sftp_path">Path</label><input id="sftp_path" placeholder="/backups"/></div>
           <div class="row">
-            <div><label for="sftp_password">Password</label><input id="sftp_password" type="password"/></div>
-            <div><label for="sftp_key_file">Key file path</label><input id="sftp_key_file"/></div>
+            <div class="field"><label for="sftp_password">Password</label><input id="sftp_password" type="password"/></div>
+            <div class="field"><label for="sftp_key_file">Key file path</label><input id="sftp_key_file"/></div>
           </div>
         </div>
         <label class="check"><input type="checkbox" id="encrypt" checked/> Encrypt backups on this machine (AES)</label>
         <div class="nav">
           <button type="button" class="btn btn-ghost" id="back-3">Back</button>
-          <button type="button" class="btn btn-primary" id="next-3">Continue to review</button>
+          <button type="button" class="btn btn-primary" id="next-3">Continue</button>
         </div>
       </div>
     </div>
 
     <div class="panel" data-panel="4">
       <div class="card">
-        <h2>Review and run</h2>
-        <p class="hint">Save config, test the license token, then run a backup once.</p>
+        <div class="card-head">
+          <div>
+            <h2>Review and run</h2>
+            <p>Save configuration, verify the license, then run a test backup.</p>
+          </div>
+        </div>
         <div id="review" class="review">Not loaded yet.</div>
         <div class="actions">
           <button type="button" class="btn btn-primary" id="btn-save">Save configuration</button>
@@ -251,15 +387,17 @@ pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-heig
         </div>
       </div>
       <div class="card">
-        <h2>Live status</h2>
+        <div class="card-head"><div><h2>Live status</h2><p>Updated every few seconds while this page is open.</p></div></div>
         <pre id="status" class="status">—</pre>
       </div>
       <div class="card">
-        <h2>Recent history</h2>
+        <div class="card-head"><div><h2>Recent history</h2><p>Latest backup attempts on this agent.</p></div></div>
         <div id="history" class="hint">No runs yet.</div>
       </div>
     </div>
   </form>
+
+  <div class="foot">VaultBackup Agent · backups stay on your storage</div>
 </div>
 <div class="toast hidden" id="toast"></div>
 <script>
@@ -271,7 +409,7 @@ pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-heig
     t.textContent = msg;
     t.classList.remove("hidden", "ok", "bad");
     t.classList.add(ok ? "ok" : "bad");
-    setTimeout(function () { t.classList.add("hidden"); }, 3500);
+    setTimeout(function () { t.classList.add("hidden"); }, 3200);
   }
   function setStep(n) {
     document.querySelectorAll(".step").forEach(function (b) {
@@ -426,11 +564,11 @@ pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-heig
       var pill = $("status-pill");
       if (j.licenseOk) {
         pill.textContent = "License OK";
-        pill.className = "pill ok";
-        $("kpi-lic").textContent = "OK";
+        pill.className = "badge ok";
+        $("kpi-lic").textContent = "Active";
       } else {
         pill.textContent = j.licenseReason || "Setup needed";
-        pill.className = "pill warn";
+        pill.className = "badge warn";
         $("kpi-lic").textContent = j.licenseReason || "Needed";
       }
       if (j.database) {
@@ -448,7 +586,7 @@ pre.status{white-space:pre-wrap;margin:0;font-size:.78rem;color:#94a3b8;max-heig
         return;
       }
       $("history").innerHTML = list.map(function (h) {
-        return "<div class=\"hist-row\"><span class=\"pill\">" +
+        return "<div class=\"hist-row\"><span class=\"tag\">" +
           (h.status || "") + "</span><span>" + (h.started || "") + " · " +
           (h.message || h.error || "") + "</span></div>";
       }).join("");
