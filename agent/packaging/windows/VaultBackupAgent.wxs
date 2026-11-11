@@ -33,6 +33,7 @@
     <Property Id="ARPHELPLINK" Value="https://backup.enadoctemp.workers.dev/" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <Property Id="WEBUIPASSWORD" Secure="yes" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
     <Condition Message="VaultBackup Agent requires 64-bit Windows.">
       <![CDATA[VersionNT64]]>
     </Condition>
@@ -73,13 +74,13 @@
             Type="ownProcess"
             Name="VaultBackupAgent"
             DisplayName="VaultBackup Agent"
-            Description="VaultBackup Agent — scheduled encrypted database backups (runs as Local System)."
+            Description="VaultBackup Agent - scheduled encrypted database backups (Local System)."
             Start="auto"
             Account="LocalSystem"
             ErrorControl="normal"
             Interactive="no"
             Vital="yes"
-            Arguments="-config "[AgentDataFolder]config.json" -webui 127.0.0.1:8787 -webui-password [WEBUIPASSWORD]" />
+            Arguments="-config "[AgentDataFolder]config.json" -webui 127.0.0.1:8787" />
         <ServiceControl
             Id="StartService"
             Name="VaultBackupAgent"
@@ -169,7 +170,7 @@
                   Impersonate="no"
                   Return="ignore" />
     <InstallExecuteSequence>
-      <Custom Action="SeedConfig" After="InstallFiles">NOT REMOVE</Custom>
+      <Custom Action="SeedConfig" After="InstallFiles" Before="StartServices">NOT REMOVE</Custom>
     </InstallExecuteSequence>
   </Product>
 </Wix>
