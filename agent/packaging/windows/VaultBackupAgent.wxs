@@ -2,9 +2,13 @@
 <!--
   WiX source for VaultBackup Agent MSI (Windows x64).
   Installs per-machine with elevated privileges and a LocalSystem service.
-  The agent EXE implements Windows SCM protocol (cmd/agent/service_windows.go).
+  The agent EXE implements Windows SCM protocol (see cmd/agent/service_windows.go).
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <!-- Override at build: candle -dLicenseRtf=C:\full\path\License.rtf -->
+  <?ifndef LicenseRtf ?>
+    <?define LicenseRtf = "License.rtf" ?>
+  <?endif?>
   <Product
       Id="*"
       Name="VaultBackup Agent"
@@ -33,7 +37,7 @@
     <Property Id="ARPHELPLINK" Value="https://backup.enadoctemp.workers.dev/" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <Property Id="WEBUIPASSWORD" Secure="yes" />
-    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
     <Condition Message="VaultBackup Agent requires 64-bit Windows.">
       <![CDATA[VersionNT64]]>
     </Condition>
@@ -80,7 +84,7 @@
             ErrorControl="normal"
             Interactive="no"
             Vital="yes"
-            Arguments="-config "[AgentDataFolder]config.json" -webui 127.0.0.1:8787" />
+            Arguments="-config &quot;[AgentDataFolder]config.json&quot; -webui 127.0.0.1:8787" />
         <ServiceControl
             Id="StartService"
             Name="VaultBackupAgent"
@@ -165,7 +169,7 @@
 
     <CustomAction Id="SeedConfig"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="cmd /c if not exist "[AgentDataFolder]config.json" copy /Y "[INSTALLFOLDER]config.example.json" "[AgentDataFolder]config.json""
+                  ExeCommand="cmd /c if not exist &quot;[AgentDataFolder]config.json&quot; copy /Y &quot;[INSTALLFOLDER]config.example.json&quot; &quot;[AgentDataFolder]config.json&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
