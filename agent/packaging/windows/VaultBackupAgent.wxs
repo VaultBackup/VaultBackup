@@ -2,10 +2,8 @@
 <!--
   WiX source for VaultBackup Agent MSI (Windows x64).
   Installs per-machine with elevated privileges and a LocalSystem service.
-  The agent EXE implements Windows SCM protocol (see cmd/agent/service_windows.go).
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <!-- Override at build: candle -dLicenseRtf=C:\full\path\License.rtf -->
   <?ifndef LicenseRtf ?>
     <?define LicenseRtf = "License.rtf" ?>
   <?endif?>
@@ -83,7 +81,7 @@
             ErrorControl="normal"
             Interactive="no"
             Vital="yes"
-            Arguments="-config "[AgentDataFolder]config.json" -webui 127.0.0.1:8787" />
+            Arguments='-config "[AgentDataFolder]config.json" -webui 127.0.0.1:8787' />
         <ServiceControl
             Id="StartService"
             Name="VaultBackupAgent"
@@ -168,7 +166,7 @@
 
     <CustomAction Id="SeedConfig"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="cmd /c if not exist "[AgentDataFolder]config.json" copy /Y "[INSTALLFOLDER]config.example.json" "[AgentDataFolder]config.json""
+                  ExeCommand='cmd /c if not exist "[AgentDataFolder]config.json" copy /Y "[INSTALLFOLDER]config.example.json" "[AgentDataFolder]config.json"'
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
