@@ -40,7 +40,7 @@ func ProbeURI(dbType, uri string) DBResult {
 	switch t {
 	case "postgres", "cockroach":
 		res = probeTCP(uri, 5432)
-	case "mysql":
+	case "mysql", "mariadb":
 		res = probeTCP(uri, 3306)
 	case "mongodb":
 		res = probeTCP(uri, 27017)
@@ -72,6 +72,7 @@ func ProbeURI(dbType, uri string) DBResult {
 	if res.LatencyMs == 0 {
 		res.LatencyMs = time.Since(start).Milliseconds()
 	}
+	// tool discovery
 	tools := discoverTools(t)
 	if len(tools) > 0 {
 		res.Tools = strings.Join(tools, ", ")
@@ -92,6 +93,7 @@ func probeTCP(uri string, defaultPort int) DBResult {
 }
 
 func probeRedis(uri string) DBResult {
+	// Prefer redis-cli PING when available
 	if bin, err := exec.LookPath("redis-cli"); err == nil {
 		args := []string{"PING"}
 		if uri != "" {
@@ -133,8 +135,8 @@ func discoverTools(dbType string) []string {
 	switch dbType {
 	case "postgres", "cockroach":
 		names = []string{"pg_dump", "cockroach"}
-	case "mysql":
-		names = []string{"mysqldump"}
+	case "mysql", "mariadb":
+		names = []string{"mysqldump", "mariadb-dump"}
 	case "mongodb":
 		names = []string{"mongodump"}
 	case "redis":
