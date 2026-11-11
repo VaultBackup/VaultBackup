@@ -27,6 +27,18 @@ import (
 var version = "1.2.3"
 
 func main() {
+	// MSI installs the agent as a Windows service. The EXE must speak SCM protocol
+	// or the service fails while the same binary still works when double-clicked.
+	if isWindowsService() {
+		runWindowsService()
+		return
+	}
+	if err := runInteractive(); err != nil {
+		log.Fatalf("%v", err)
+	}
+}
+
+func runInteractive() error {
 	configPath := flag.String("config", "config.yaml", "Config path")
 	webuiAddr := flag.String("webui", "127.0.0.1:8787", "Web UI listen address")
 	webuiPass := flag.String("webui-password", os.Getenv("WEBUI_PASSWORD"), "Optional UI password")
@@ -41,12 +53,12 @@ func main() {
 
 	if *restore != "" {
 		runRestore(*configPath, *restore, *restoreOut)
-		return
+		return nil
 	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		return fmt.Errorf("load config: %w", err)
 	}
 	_ = os.MkdirAll(cfg.WorkDir, 0o700)
 	history.Init(cfg.WorkDir)
@@ -69,9 +81,9 @@ func main() {
 
 	if *once {
 		if err := runBackup(""); err != nil {
-			log.Fatalf("backup: %v", err)
+			return fmt.Errorf("backup: %w", err)
 		}
-		return
+		return nil
 	}
 
 	go licenseLoop()
@@ -80,14 +92,14 @@ func main() {
 
 	if *noWebUI || *webuiAddr == "" {
 		log.Printf("Web UI disabled")
-		select {}
+		select {} // block forever (service/daemon)
 	}
 
 	srv := webui.New(*webuiAddr, *webuiPass).WithTLS(*webuiTLSCert, *webuiTLSKey)
 	srv.OnRun = func() error { return runBackup("") }
 	log.Printf("Web UI listening on %s://%s", srv.Scheme(), *webuiAddr)
 	if strings.TrimSpace(*webuiPass) == "" {
-		log.Printf("Web UI password not set - OK for loopback only; use -webui-password or WEBUI_PASSWORD if binding on LAN")
+		log.Printf("Web UI password not set — OK for loopback only; use -webui-password or WEBUI_PASSWORD if binding on LAN")
 	} else {
 		log.Printf("Web UI basic auth enabled")
 	}
@@ -95,8 +107,9 @@ func main() {
 		log.Printf("Web UI TLS enabled cert=%s", *webuiTLSCert)
 	}
 	if err := srv.Start(); err != nil {
-		log.Fatalf("webui: %v", err)
+		return fmt.Errorf("webui: %w", err)
 	}
+	return nil
 }
 
 func firstEnv(keys ...string) string {
