@@ -1,14 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   WiX source for VaultBackup Agent MSI (Windows x64).
-
-  Build on a Windows machine with WiX Toolset v3:
-
-    candle -dVersion=1.2.3 -arch x64 VaultBackupAgent.wxs
-    light  -ext WixUIExtension -out vaultbackup-agent-1.2.3-x64.msi VaultBackupAgent.wixobj
-
-    # Or use packaging/windows/build-msi.ps1
-    # CI: .github/workflows/build-agents.yml job "msi"
+  Installs per-machine with elevated privileges and a LocalSystem service.
+  The agent EXE implements Windows SCM protocol (cmd/agent/service_windows.go).
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product
@@ -20,12 +14,13 @@
       UpgradeCode="B7E4C2A1-9F3D-4E8B-A1C6-2D5E7F90B3A4">
 
     <Package
-        InstallerVersion="500"
+        InstallerLocale="1033"
         Compressed="yes"
         InstallScope="perMachine"
+        InstallPrivileges="elevated"
+        Platform="x64"
         Description="VaultBackup desktop backup agent"
-        Comments="Encrypted local database backups to your storage"
-        Manufacturer="VaultBackup" />
+        Comments="Encrypted database backups to your storage. Requires administrator to install." />
 
     <MajorUpgrade
         DowngradeErrorMessage="A newer version of VaultBackup Agent is already installed."
@@ -37,13 +32,16 @@
     <Property Id="ARPPRODUCTICON" Value="AgentIcon" />
     <Property Id="ARPHELPLINK" Value="https://backup.enadoctemp.workers.dev/" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
-    <!-- Optional public properties: msiexec /i ... WEBUIPASSWORD=secret -->
     <Property Id="WEBUIPASSWORD" Secure="yes" />
+    <Condition Message="VaultBackup Agent requires 64-bit Windows.">
+      <![CDATA[VersionNT64]]>
+    </Condition>
 
     <Feature Id="ProductFeature" Title="VaultBackup Agent" Level="1">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="AgentEnvConfig" />
+      <ComponentRef Id="ProgramDataDir" />
     </Feature>
 
     <UIRef Id="WixUI_InstallDir" />
@@ -51,8 +49,11 @@
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
-        <Directory Id="INSTALLFOLDER" Name="VaultBackup Agent">
-          <Directory Id="DataFolder" Name="data" />
+        <Directory Id="INSTALLFOLDER" Name="VaultBackup Agent" />
+      </Directory>
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="VendorDataFolder" Name="VaultBackup">
+          <Directory Id="AgentDataFolder" Name="Agent" />
         </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
@@ -61,7 +62,7 @@
     </Directory>
 
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-      <Component Id="MainExecutable" Guid="*">
+      <Component Id="MainExecutable" Guid="*" Win64="yes">
         <File Id="AgentExe"
               Source="vaultbackup-agent-windows-amd64.exe"
               Name="vaultbackup-agent.exe"
@@ -72,12 +73,13 @@
             Type="ownProcess"
             Name="VaultBackupAgent"
             DisplayName="VaultBackup Agent"
-            Description="Runs scheduled encrypted database backups."
+            Description="VaultBackup Agent — scheduled encrypted database backups (runs as Local System)."
             Start="auto"
             Account="LocalSystem"
             ErrorControl="normal"
             Interactive="no"
-            Arguments="-config &quot;[INSTALLFOLDER]config.json&quot; -webui 127.0.0.1:8787 -webui-password [WEBUIPASSWORD]" />
+            Vital="yes"
+            Arguments="-config "[AgentDataFolder]config.json" -webui 127.0.0.1:8787 -webui-password [WEBUIPASSWORD]" />
         <ServiceControl
             Id="StartService"
             Name="VaultBackupAgent"
@@ -86,13 +88,13 @@
             Remove="uninstall"
             Wait="yes" />
       </Component>
-      <Component Id="DefaultConfig" Guid="*">
+      <Component Id="DefaultConfig" Guid="*" Win64="yes">
         <File Id="ConfigExample"
               Source="config.example.json"
               Name="config.example.json"
               KeyPath="yes" />
       </Component>
-      <Component Id="ReadmeFile" Guid="*">
+      <Component Id="ReadmeFile" Guid="*" Win64="yes">
         <File Id="Readme"
               Source="README-WINDOWS.txt"
               Name="README.txt"
@@ -100,20 +102,42 @@
       </Component>
     </ComponentGroup>
 
+    <DirectoryRef Id="AgentDataFolder">
+      <Component Id="ProgramDataDir" Guid="*" Win64="yes">
+        <CreateFolder>
+          <Permission User="Administrators" GenericAll="yes" />
+          <Permission User="SYSTEM" GenericAll="yes" />
+          <Permission User="Users" GenericRead="yes" />
+        </CreateFolder>
+        <RegistryValue Root="HKLM"
+                       Key="Software\VaultBackup\Agent"
+                       Name="DataPath"
+                       Type="string"
+                       Value="[AgentDataFolder]"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
     <DirectoryRef Id="ApplicationProgramsFolder">
-      <Component Id="ApplicationShortcut" Guid="*">
+      <Component Id="ApplicationShortcut" Guid="*" Win64="yes">
         <Shortcut Id="StartMenuShortcut"
                   Name="VaultBackup Agent UI"
-                  Description="Open local agent setup UI"
+                  Description="Open local agent setup UI (service must be running)"
                   Target="[System64Folder]cmd.exe"
                   Arguments="/c start http://127.0.0.1:8787"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="StartMenuService"
+                  Name="Start VaultBackup Agent Service"
+                  Description="Start the agent Windows service (requires admin)"
+                  Target="[System64Folder]net.exe"
+                  Arguments="start VaultBackupAgent"
                   WorkingDirectory="INSTALLFOLDER" />
         <Shortcut Id="UninstallProduct"
                   Name="Uninstall VaultBackup Agent"
                   Target="[System64Folder]msiexec.exe"
                   Arguments="/x [ProductCode]" />
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
-        <RegistryValue Root="HKCU"
+        <RegistryValue Root="HKLM"
                        Key="Software\VaultBackup\Agent"
                        Name="installed"
                        Type="integer"
@@ -123,7 +147,7 @@
     </DirectoryRef>
 
     <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="AgentEnvConfig" Guid="*">
+      <Component Id="AgentEnvConfig" Guid="*" Win64="yes">
         <RegistryValue Root="HKLM"
                        Key="Software\VaultBackup\Agent"
                        Name="InstallPath"
@@ -138,14 +162,14 @@
       </Component>
     </DirectoryRef>
 
-    <CustomAction Id="CreateDataDir"
+    <CustomAction Id="SeedConfig"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="cmd /c if not exist data mkdir data"
+                  ExeCommand="cmd /c if not exist "[AgentDataFolder]config.json" copy /Y "[INSTALLFOLDER]config.example.json" "[AgentDataFolder]config.json""
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
     <InstallExecuteSequence>
-      <Custom Action="CreateDataDir" After="InstallFiles">NOT REMOVE</Custom>
+      <Custom Action="SeedConfig" After="InstallFiles">NOT REMOVE</Custom>
     </InstallExecuteSequence>
   </Product>
 </Wix>
