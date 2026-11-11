@@ -118,17 +118,32 @@ func outPath(workDir, name, ext string) string {
 func dumpPostgres(workDir, name, uri, kind string) (string, error) {
 	bin, err := requireBin("pg_dump")
 	if err != nil {
-		return "", err
+		if kind == "cockroach" {
+			if b, e := requireBin("cockroach"); e == nil {
+				out := outPath(workDir, name, ".sql.gz")
+				cmd := exec.Command(b, "dump", "--url="+uri)
+				return pipeGzip(cmd, out)
+			}
+		}
+		return dumpPostgresBuiltin(workDir, name, uri)
 	}
 	out := outPath(workDir, name, ".sql.gz")
 	cmd := exec.Command(bin, "--dbname="+uri, "--no-owner", "--no-acl")
-	return pipeGzip(cmd, out)
+	path, err := pipeGzip(cmd, out)
+	if err != nil {
+		if p2, err2 := dumpPostgresBuiltin(workDir, name, uri); err2 == nil {
+			return p2, nil
+		}
+		return "", err
+	}
+	return path, nil
 }
 
 func dumpMySQL(workDir, name, uri string) (string, error) {
+	// Prefer native mysqldump when present; otherwise pure-Go built-in dump.
 	bin, err := requireBin("mysqldump", "mariadb-dump")
 	if err != nil {
-		return "", err
+		return dumpMySQLBuiltin(workDir, name, uri)
 	}
 	args := []string{"--single-transaction", "--routines", "--triggers", "--protocol=TCP"}
 	host, port, user, pass, dbname, err := parseMySQLURI(uri)
@@ -138,7 +153,6 @@ func dumpMySQL(workDir, name, uri string) (string, error) {
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	// Prefer 127.0.0.1 over localhost so mysqldump does not switch to a Unix socket.
 	if host == "localhost" {
 		host = "127.0.0.1"
 	}
@@ -157,7 +171,14 @@ func dumpMySQL(workDir, name, uri string) (string, error) {
 	}
 	out := outPath(workDir, name, ".sql.gz")
 	cmd := exec.Command(bin, args...)
-	return pipeGzip(cmd, out)
+	path, err := pipeGzip(cmd, out)
+	if err != nil {
+		if p2, err2 := dumpMySQLBuiltin(workDir, name, uri); err2 == nil {
+			return p2, nil
+		}
+		return "", err
+	}
+	return path, nil
 }
 
 // parseMySQLURI accepts mysql://user:pass@host:port/db?params or user:pass@host:port/db.
@@ -212,13 +233,28 @@ func parseMySQLURI(uri string) (host, port, user, pass, db string, err error) {
 }
 
 func dumpSQLite(workDir, name, uri string) (string, error) {
-	bin, err := requireBin("sqlite3")
+	src := strings.TrimPrefix(uri, "file:")
+	if _, err := os.Stat(src); err != nil {
+		return "", fmt.Errorf("sqlite file: %w", err)
+	}
+	out := outPath(workDir, name, ".db.gz")
+	if bin, err := exec.LookPath("sqlite3"); err == nil {
+		tmp := outPath(workDir, name, ".db")
+		cmd := exec.Command(bin, src, ".backup "+tmp)
+		if err := cmd.Run(); err == nil {
+			return gzipFile(tmp, out)
+		}
+	}
+	// Built-in: copy file then gzip (pure Go).
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return "", err
 	}
-	out := outPath(workDir, name, ".sql.gz")
-	cmd := exec.Command(bin, uri, ".dump")
-	return pipeGzip(cmd, out)
+	tmp := outPath(workDir, name, ".db")
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return "", err
+	}
+	return gzipFile(tmp, out)
 }
 
 func dumpMongo(workDir, name, uri string) (string, error) {
@@ -324,40 +360,4 @@ func safeCommandEnv() []string {
 		}
 	}
 	return out
-}
-
-func pipeGzip(cmd *exec.Cmd, outPath string) (string, error) {
-	f, err := os.Create(outPath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	gzipBin, err := exec.LookPath("gzip")
-	if err != nil {
-		return "", fmt.Errorf("gzip not found: %w", err)
-	}
-	gz := exec.Command(gzipBin, "-c")
-	gz.Stdin, err = cmd.StdoutPipe()
-	if err != nil {
-		return "", err
-	}
-	gz.Stdout = f
-	var errBuf strings.Builder
-	cmd.Stderr = &errBuf
-	gz.Stderr = &errBuf
-	if err := cmd.Start(); err != nil {
-		return "", err
-	}
-	if err := gz.Start(); err != nil {
-		_ = cmd.Process.Kill()
-		return "", err
-	}
-	if err := cmd.Wait(); err != nil {
-		_ = gz.Process.Kill()
-		return "", fmt.Errorf("%w: %s", err, errBuf.String())
-	}
-	if err := gz.Wait(); err != nil {
-		return "", fmt.Errorf("gzip: %w: %s", err, errBuf.String())
-	}
-	return outPath, nil
 }
