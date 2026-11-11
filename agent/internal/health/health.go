@@ -24,9 +24,18 @@ type DBResult struct {
 
 // ProbeDB checks database reachability based on config.
 func ProbeDB(cfg config.Config) DBResult {
-	t := db.NormalizeType(cfg.Database.Type)
-	uri := cfg.Database.URI
+	return ProbeURI(cfg.Database.Type, cfg.Database.URI)
+}
+
+// ProbeURI checks reachability for a candidate type + URI without requiring a saved config.
+// Used by the Web UI "Test connection" action before the user saves.
+func ProbeURI(dbType, uri string) DBResult {
+	t := db.NormalizeType(dbType)
+	uri = strings.TrimSpace(uri)
 	start := time.Now()
+	if uri == "" {
+		return DBResult{Status: "Unreachable", OK: false, Detail: "connection URI is empty"}
+	}
 	var res DBResult
 	switch t {
 	case "postgres", "cockroach":
@@ -63,7 +72,6 @@ func ProbeDB(cfg config.Config) DBResult {
 	if res.LatencyMs == 0 {
 		res.LatencyMs = time.Since(start).Milliseconds()
 	}
-	// tool discovery
 	tools := discoverTools(t)
 	if len(tools) > 0 {
 		res.Tools = strings.Join(tools, ", ")
@@ -84,7 +92,6 @@ func probeTCP(uri string, defaultPort int) DBResult {
 }
 
 func probeRedis(uri string) DBResult {
-	// Prefer redis-cli PING when available
 	if bin, err := exec.LookPath("redis-cli"); err == nil {
 		args := []string{"PING"}
 		if uri != "" {
