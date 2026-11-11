@@ -11,23 +11,10 @@ const EmbeddedUI = `<!DOCTYPE html>
 <link rel="icon" type="image/png" href="/icon.png"/>
 <style>
 :root{
-  --bg:#050a12;
-  --surface:#0b1220;
-  --surface2:#0f1829;
-  --elev:#121c30;
-  --line:rgba(148,163,184,.12);
-  --line2:rgba(148,163,184,.22);
-  --text:#f8fafc;
-  --muted:#94a3b8;
-  --dim:#64748b;
-  --brand:#22c55e;
-  --brand-d:#16a34a;
-  --brand-glow:rgba(34,197,94,.18);
-  --ok:#4ade80;
-  --warn:#fbbf24;
-  --bad:#f87171;
-  --radius:16px;
-  --shadow:0 18px 50px rgba(0,0,0,.35);
+  --bg:#050a12;--line:rgba(148,163,184,.12);--line2:rgba(148,163,184,.22);
+  --text:#f8fafc;--muted:#94a3b8;--dim:#64748b;--brand:#22c55e;--brand-d:#16a34a;
+  --brand-glow:rgba(34,197,94,.18);--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;
+  --radius:16px;--shadow:0 18px 50px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -50,7 +37,7 @@ body{
 .brand{display:flex;align-items:center;gap:.8rem;min-width:0}
 .mark{
   width:42px;height:42px;border-radius:13px;flex:0 0 auto;
-  display:grid;place-items:center;font-weight:800;letter-spacing:.02em;font-size:.82rem;
+  display:grid;place-items:center;font-weight:800;font-size:.82rem;
   background:linear-gradient(145deg,#22c55e 0%,#0f766e 100%);
   box-shadow:0 10px 28px rgba(34,197,94,.28), inset 0 1px 0 rgba(255,255,255,.2);
 }
@@ -80,9 +67,8 @@ body{
 }
 @media(max-width:760px){.rail{border-radius:16px;flex-wrap:wrap}}
 .step{
-  flex:1;min-width:110px;border:0;cursor:pointer;
-  background:transparent;color:var(--dim);border-radius:999px;
-  padding:.55rem .7rem;font-size:.78rem;font-weight:700;transition:.18s ease;
+  flex:1;min-width:110px;border:0;cursor:pointer;background:transparent;color:var(--dim);
+  border-radius:999px;padding:.55rem .7rem;font-size:.78rem;font-weight:700;transition:.18s ease;
 }
 .step:hover{color:#cbd5e1;background:rgba(148,163,184,.06)}
 .step.on{background:var(--brand-glow);color:#bbf7d0;box-shadow:inset 0 0 0 1px rgba(34,197,94,.35)}
@@ -108,9 +94,7 @@ input,select,textarea{
 input::placeholder,textarea::placeholder{color:#475569}
 input:hover,select:hover,textarea:hover{border-color:var(--line2)}
 input:focus,select:focus,textarea:focus{
-  border-color:rgba(34,197,94,.55);
-  box-shadow:0 0 0 4px rgba(34,197,94,.12);
-  background:#080f1a;
+  border-color:rgba(34,197,94,.55);box-shadow:0 0 0 4px rgba(34,197,94,.12);background:#080f1a;
 }
 textarea{min-height:5.4rem;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;line-height:1.45}
 .hint{color:var(--dim);font-size:.76rem;margin-top:.35rem;line-height:1.4}
@@ -125,6 +109,17 @@ textarea{min-height:5.4rem;resize:vertical;font-family:ui-monospace,SFMono-Regul
 }
 .callout strong{display:block;font-size:.82rem;color:#e2e8f0;margin-bottom:.15rem}
 .callout span{display:block;font-size:.76rem;color:var(--muted);line-height:1.4}
+.probe{
+  display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;
+  margin:.35rem 0 .9rem;padding:.7rem .85rem;border-radius:12px;
+  border:1px solid var(--line);background:#070d18;
+}
+.probe .msg{font-size:.8rem;color:var(--muted);line-height:1.4;flex:1;min-width:180px}
+.probe.ok{border-color:rgba(74,222,128,.35);background:rgba(22,163,74,.08)}
+.probe.ok .msg{color:var(--ok)}
+.probe.bad{border-color:rgba(248,113,113,.35);background:rgba(239,68,68,.08)}
+.probe.bad .msg{color:var(--bad)}
+.probe.busy .msg{color:var(--warn)}
 .presets{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 .75rem}
 .preset{
   border:1px solid var(--line);background:#0a1322;color:var(--muted);
@@ -138,14 +133,12 @@ textarea{min-height:5.4rem;resize:vertical;font-family:ui-monospace,SFMono-Regul
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
   border:0;border-radius:12px;padding:.68rem 1.1rem;font-size:.85rem;font-weight:750;cursor:pointer;
-  transition:transform .12s ease, filter .12s ease, background .12s ease, border-color .12s ease;
 }
-.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
 .btn-primary{
   color:#fff;background:linear-gradient(180deg,#4ade80 0%, var(--brand) 45%, var(--brand-d) 100%);
   box-shadow:0 10px 24px rgba(22,163,74,.28), inset 0 1px 0 rgba(255,255,255,.2);
 }
-.btn-primary:hover{filter:brightness(1.05)}
 .btn-ghost{color:#cbd5e1;background:transparent;border:1px solid var(--line)}
 .btn-ghost:hover{border-color:var(--line2);background:rgba(148,163,184,.05)}
 .panel{display:none}
@@ -172,7 +165,7 @@ pre.status{
 .toast{
   position:fixed;right:1rem;bottom:1rem;z-index:50;max-width:340px;
   background:rgba(15,23,42,.96);border:1px solid var(--line);border-radius:14px;
-  padding:.85rem 1rem;box-shadow:var(--shadow);backdrop-filter:blur(10px);
+  padding:.85rem 1rem;box-shadow:var(--shadow);
 }
 .toast.hidden{display:none !important}
 .toast.ok{border-color:rgba(34,197,94,.45)}
@@ -209,60 +202,28 @@ pre.status{
   <form id="cfg-form">
     <div class="panel on" data-panel="1">
       <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>Token and schedule</h2>
-            <p>Name this agent, set when backups run, and paste your desktop token.</p>
-          </div>
-        </div>
-        <div class="field">
-          <label for="name">Agent name</label>
-          <input id="name" placeholder="office-linux-1" autocomplete="off"/>
-        </div>
+        <div class="card-head"><div><h2>Token and schedule</h2><p>Name this agent, set when backups run, and paste your desktop token.</p></div></div>
+        <div class="field"><label for="name">Agent name</label><input id="name" placeholder="office-linux-1" autocomplete="off"/></div>
         <div class="row">
-          <div class="field">
-            <label for="schedule">Schedule (cron)</label>
-            <input id="schedule" placeholder="0 3 * * *"/>
-            <div class="hint">Example: daily at 03:00 UTC</div>
-          </div>
-          <div class="field">
-            <label for="retention">Retention (days)</label>
-            <input id="retention" type="number" min="1" value="14"/>
-          </div>
+          <div class="field"><label for="schedule">Schedule (cron)</label><input id="schedule" placeholder="0 3 * * *"/><div class="hint">Example: daily at 03:00 UTC</div></div>
+          <div class="field"><label for="retention">Retention (days)</label><input id="retention" type="number" min="1" value="14"/></div>
         </div>
-        <div class="callout">
-          <div class="ic">✓</div>
-          <div>
-            <strong>License server is fixed in this agent</strong>
-            <span>https://backup.enadoctemp.workers.dev · cannot be changed from the UI or config</span>
-          </div>
-        </div>
-        <div class="field">
-          <label for="token">Agent token</label>
-          <input id="token" type="password" placeholder="Paste token from the cloud dashboard (leave blank to keep)" autocomplete="off"/>
-          <div class="hint">Create a token under Desktop Agents in the VaultBackup dashboard.</div>
-        </div>
-        <div class="nav">
-          <span></span>
-          <button type="button" class="btn btn-primary" id="next-1">Continue</button>
-        </div>
+        <div class="callout"><div class="ic">✓</div><div><strong>License server is fixed in this agent</strong><span>https://backup.enadoctemp.workers.dev · cannot be changed</span></div></div>
+        <div class="field"><label for="token">Agent token</label><input id="token" type="password" placeholder="Paste token from the cloud dashboard (leave blank to keep)" autocomplete="off"/></div>
+        <div class="nav"><span></span><button type="button" class="btn btn-primary" id="next-1">Continue</button></div>
       </div>
     </div>
 
     <div class="panel" data-panel="2">
       <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>Database connection</h2>
-            <p>Point the agent at a database reachable from this machine.</p>
-          </div>
-        </div>
+        <div class="card-head"><div><h2>Database connection</h2><p>Point the agent at a database reachable from this machine. Test before saving.</p></div></div>
         <div class="row">
           <div class="field">
             <label for="db_type">Engine</label>
             <select id="db_type">
               <option value="postgres">PostgreSQL</option>
               <option value="mysql">MySQL / MariaDB</option>
+              <option value="mssql">SQL Server</option>
               <option value="mongodb">MongoDB</option>
               <option value="redis">Redis</option>
               <option value="sqlite">SQLite / Turso</option>
@@ -270,16 +231,17 @@ pre.status{
           </div>
           <div class="field">
             <label for="backup_type">Backup type</label>
-            <select id="backup_type">
-              <option value="full">Full</option>
-              <option value="schema">Schema only</option>
-            </select>
+            <select id="backup_type"><option value="full">Full</option><option value="schema">Schema only</option></select>
           </div>
         </div>
         <div class="field">
           <label for="db_uri">Connection URI</label>
           <textarea id="db_uri" placeholder="postgres://user:pass@host:5432/db?sslmode=require"></textarea>
           <div class="hint" id="uri_hint">Host must be reachable from this machine (LAN or public).</div>
+        </div>
+        <div class="probe" id="db-probe">
+          <div class="msg" id="db-probe-msg">Test the URI before saving to confirm the host is reachable.</div>
+          <button type="button" class="btn btn-ghost" id="btn-test-db">Test connection</button>
         </div>
         <div class="nav">
           <button type="button" class="btn btn-ghost" id="back-2">Back</button>
@@ -290,12 +252,7 @@ pre.status{
 
     <div class="panel" data-panel="3">
       <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>Backup destination</h2>
-            <p>Store backups on local disk or your own S3-compatible bucket.</p>
-          </div>
-        </div>
+        <div class="card-head"><div><h2>Backup destination</h2><p>Store backups on local disk or your own S3-compatible bucket.</p></div></div>
         <div class="field">
           <label for="dest_mode">Storage mode</label>
           <select id="dest_mode">
@@ -306,12 +263,7 @@ pre.status{
             <option value="sftp">SFTP</option>
           </select>
         </div>
-        <div id="dest-local">
-          <div class="field">
-            <label for="local_dir">Local directory</label>
-            <input id="local_dir" placeholder="/var/lib/vaultbackup/backups"/>
-          </div>
-        </div>
+        <div id="dest-local"><div class="field"><label for="local_dir">Local directory</label><input id="local_dir" placeholder="/var/lib/vaultbackup/backups"/></div></div>
         <div id="dest-s3" class="hidden">
           <div class="sec">Provider presets</div>
           <div class="presets" id="s3-presets">
@@ -321,15 +273,15 @@ pre.status{
             <button type="button" class="preset" data-preset="r2">Cloudflare R2</button>
           </div>
           <div class="row">
-            <div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint" placeholder="https://s3.amazonaws.com"/></div>
-            <div class="field"><label for="s3_region">Region</label><input id="s3_region" placeholder="us-east-1"/></div>
+            <div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint"/></div>
+            <div class="field"><label for="s3_region">Region</label><input id="s3_region"/></div>
           </div>
           <div class="row">
             <div class="field"><label for="s3_bucket">Bucket</label><input id="s3_bucket"/></div>
-            <div class="field"><label for="s3_prefix">Prefix</label><input id="s3_prefix" placeholder="backups/"/></div>
+            <div class="field"><label for="s3_prefix">Prefix</label><input id="s3_prefix"/></div>
           </div>
           <div class="row">
-            <div class="field"><label for="s3_access_key">Access key / Key ID</label><input id="s3_access_key"/></div>
+            <div class="field"><label for="s3_access_key">Access key</label><input id="s3_access_key"/></div>
             <div class="field"><label for="s3_secret_key">Secret key</label><input id="s3_secret_key" type="password" placeholder="Leave blank to keep"/></div>
           </div>
         </div>
@@ -338,7 +290,7 @@ pre.status{
             <div class="field"><label for="azure_account">Account</label><input id="azure_account"/></div>
             <div class="field"><label for="azure_container">Container</label><input id="azure_container"/></div>
           </div>
-          <div class="field"><label for="azure_key">Key</label><input id="azure_key" type="password" placeholder="Leave blank to keep"/></div>
+          <div class="field"><label for="azure_key">Key</label><input id="azure_key" type="password"/></div>
           <div class="field"><label for="azure_prefix">Prefix</label><input id="azure_prefix"/></div>
         </div>
         <div id="dest-webdav" class="hidden">
@@ -353,10 +305,10 @@ pre.status{
             <div class="field"><label for="sftp_host">Host</label><input id="sftp_host"/></div>
             <div class="field"><label for="sftp_user">User</label><input id="sftp_user"/></div>
           </div>
-          <div class="field"><label for="sftp_path">Path</label><input id="sftp_path" placeholder="/backups"/></div>
+          <div class="field"><label for="sftp_path">Path</label><input id="sftp_path"/></div>
           <div class="row">
             <div class="field"><label for="sftp_password">Password</label><input id="sftp_password" type="password"/></div>
-            <div class="field"><label for="sftp_key_file">Key file path</label><input id="sftp_key_file"/></div>
+            <div class="field"><label for="sftp_key_file">Key file</label><input id="sftp_key_file"/></div>
           </div>
         </div>
         <label class="check"><input type="checkbox" id="encrypt" checked/> Encrypt backups on this machine (AES)</label>
@@ -369,34 +321,19 @@ pre.status{
 
     <div class="panel" data-panel="4">
       <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>Review and run</h2>
-            <p>Save configuration, verify the license, then run a test backup.</p>
-          </div>
-        </div>
+        <div class="card-head"><div><h2>Review and run</h2><p>Save configuration, verify the license, then run a test backup.</p></div></div>
         <div id="review" class="review">Not loaded yet.</div>
         <div class="actions">
           <button type="button" class="btn btn-primary" id="btn-save">Save configuration</button>
           <button type="button" class="btn btn-ghost" id="btn-license">Test license</button>
           <button type="button" class="btn btn-ghost" id="btn-run">Run backup once</button>
         </div>
-        <div class="nav">
-          <button type="button" class="btn btn-ghost" id="back-4">Back</button>
-          <span></span>
-        </div>
+        <div class="nav"><button type="button" class="btn btn-ghost" id="back-4">Back</button><span></span></div>
       </div>
-      <div class="card">
-        <div class="card-head"><div><h2>Live status</h2><p>Updated every few seconds while this page is open.</p></div></div>
-        <pre id="status" class="status">—</pre>
-      </div>
-      <div class="card">
-        <div class="card-head"><div><h2>Recent history</h2><p>Latest backup attempts on this agent.</p></div></div>
-        <div id="history" class="hint">No runs yet.</div>
-      </div>
+      <div class="card"><div class="card-head"><div><h2>Live status</h2><p>Updated every few seconds.</p></div></div><pre id="status" class="status">—</pre></div>
+      <div class="card"><div class="card-head"><div><h2>Recent history</h2><p>Latest backup attempts.</p></div></div><div id="history" class="hint">No runs yet.</div></div>
     </div>
   </form>
-
   <div class="foot">VaultBackup Agent · backups stay on your storage</div>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -431,7 +368,6 @@ pre.status{
   $("back-2").addEventListener("click", function () { setStep(1); });
   $("back-3").addEventListener("click", function () { setStep(2); });
   $("back-4").addEventListener("click", function () { setStep(3); });
-
   function toggleDest() {
     var m = $("dest_mode").value;
     ["local", "s3", "azure", "webdav", "sftp"].forEach(function (k) {
@@ -440,7 +376,6 @@ pre.status{
     });
   }
   $("dest_mode").addEventListener("change", toggleDest);
-
   var presets = {
     aws: { endpoint: "https://s3.amazonaws.com", region: "us-east-1" },
     b2: { endpoint: "https://s3.us-west-004.backblazeb2.com", region: "us-west-004" },
@@ -456,31 +391,64 @@ pre.status{
       if (p.region) $("s3_region").value = p.region;
     });
   });
-
   function uriHint() {
     var t = $("db_type").value;
     var map = {
       postgres: "postgres://user:pass@host:5432/db?sslmode=require",
       mysql: "mysql://user:pass@host:3306/db",
+      mssql: "sqlserver://user:pass@host:1433?database=dbname",
       mongodb: "mongodb://user:pass@host:27017/db",
       redis: "redis://:pass@host:6379/0",
-      sqlite: "file:/path/to/db.sqlite or libsql://..."
+      sqlite: "file:/path/to/db.sqlite"
     };
     $("uri_hint").textContent = "Example: " + (map[t] || "") + " · host must be reachable from this machine.";
+    $("db_uri").placeholder = map[t] || "";
   }
   $("db_type").addEventListener("change", uriHint);
-
+  function setProbe(state, msg) {
+    var box = $("db-probe");
+    box.classList.remove("ok", "bad", "busy");
+    if (state) box.classList.add(state);
+    $("db-probe-msg").textContent = msg;
+  }
+  $("btn-test-db").addEventListener("click", function () {
+    var type = $("db_type").value;
+    var uri = $("db_uri").value.trim();
+    if (!uri) {
+      setProbe("bad", "Enter a connection URI first.");
+      toast("Connection URI is required", false);
+      return;
+    }
+    var btn = $("btn-test-db");
+    btn.disabled = true;
+    setProbe("busy", "Testing connection…");
+    api("/api/test-db", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: type, uri: uri })
+    }).then(function (j) {
+      if (j.ok) {
+        var tools = j.tools ? (" · tools: " + j.tools) : "";
+        setProbe("ok", "Reachable (" + (j.latencyMs || 0) + " ms)" + tools + (j.detail ? " · " + j.detail : ""));
+        toast("Database reachable", true);
+        $("kpi-db").textContent = "Reachable";
+      } else {
+        setProbe("bad", (j.status || "Failed") + (j.detail ? ": " + j.detail : "") + (j.tools ? " · tools: " + j.tools : ""));
+        toast(j.detail || j.status || "Connection failed", false);
+        $("kpi-db").textContent = j.status || "Unreachable";
+      }
+    }).catch(function (e) {
+      setProbe("bad", String(e));
+      toast(String(e), false);
+    }).then(function () { btn.disabled = false; });
+  });
   function bodyFromForm() {
     return {
       name: $("name").value.trim(),
       schedule: $("schedule").value.trim() || "0 3 * * *",
       retention: Number($("retention").value) || 14,
       license: { token: $("token").value.trim() },
-      database: {
-        type: $("db_type").value,
-        uri: $("db_uri").value.trim(),
-        backup_type: $("backup_type").value
-      },
+      database: { type: $("db_type").value, uri: $("db_uri").value.trim(), backup_type: $("backup_type").value },
       destination: {
         mode: $("dest_mode").value,
         local_dir: $("local_dir").value.trim(),
@@ -553,8 +521,7 @@ pre.status{
       $("sftp_path").value = d.sftp_path || "";
       $("sftp_key_file").value = d.sftp_key_file || "";
       $("encrypt").checked = !c.security || c.security.encrypt !== false;
-      toggleDest();
-      uriHint();
+      toggleDest(); uriHint();
       $("kpi-sch").textContent = c.schedule || "0 3 * * *";
     });
   }
@@ -562,67 +529,37 @@ pre.status{
     return api("/api/status").then(function (j) {
       $("status").textContent = JSON.stringify(j, null, 2);
       var pill = $("status-pill");
-      if (j.licenseOk) {
-        pill.textContent = "License OK";
-        pill.className = "badge ok";
-        $("kpi-lic").textContent = "Active";
-      } else {
-        pill.textContent = j.licenseReason || "Setup needed";
-        pill.className = "badge warn";
-        $("kpi-lic").textContent = j.licenseReason || "Needed";
-      }
-      if (j.database) {
-        $("kpi-db").textContent = j.database.ok ? "Reachable" : (j.database.status || "Unreachable");
-      }
-    }).catch(function (e) {
-      $("status").textContent = String(e);
-    });
+      if (j.licenseOk) { pill.textContent = "License OK"; pill.className = "badge ok"; $("kpi-lic").textContent = "Active"; }
+      else { pill.textContent = j.licenseReason || "Setup needed"; pill.className = "badge warn"; $("kpi-lic").textContent = j.licenseReason || "Needed"; }
+      if (j.database) $("kpi-db").textContent = j.database.ok ? "Reachable" : (j.database.status || "Unreachable");
+    }).catch(function (e) { $("status").textContent = String(e); });
   }
   function loadHistory() {
     return api("/api/history").then(function (j) {
       var list = j.history || [];
-      if (!list.length) {
-        $("history").textContent = "No runs yet.";
-        return;
-      }
+      if (!list.length) { $("history").textContent = "No runs yet."; return; }
       $("history").innerHTML = list.map(function (h) {
-        return "<div class=\"hist-row\"><span class=\"tag\">" +
-          (h.status || "") + "</span><span>" + (h.started || "") + " · " +
-          (h.message || h.error || "") + "</span></div>";
+        return "<div class=\"hist-row\"><span class=\"tag\">" + (h.status || "") + "</span><span>" + (h.started || "") + " · " + (h.message || h.error || "") + "</span></div>";
       }).join("");
-    }).catch(function (e) {
-      $("history").textContent = String(e);
-    });
+    }).catch(function (e) { $("history").textContent = String(e); });
   }
   $("btn-save").addEventListener("click", function () {
-    api("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyFromForm())
-    }).then(function (j) {
-      toast(j.ok ? "Configuration saved" : "Save failed", !!j.ok);
-      $("token").value = "";
-      return refreshStatus();
-    }).catch(function (e) { toast(String(e), false); });
+    api("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyFromForm()) })
+      .then(function (j) { toast(j.ok ? "Configuration saved" : "Save failed", !!j.ok); $("token").value = ""; return refreshStatus(); })
+      .catch(function (e) { toast(String(e), false); });
   });
   $("btn-license").addEventListener("click", function () {
-    api("/api/test-license", { method: "POST" }).then(function (j) {
-      toast(j.allowed || j.ok ? "License OK" : (j.reason || j.error || "Failed"), !!(j.allowed || j.ok));
-      return refreshStatus();
-    }).catch(function (e) { toast(String(e), false); });
+    api("/api/test-license", { method: "POST" })
+      .then(function (j) { toast(j.allowed || j.ok ? "License OK" : (j.reason || j.error || "Failed"), !!(j.allowed || j.ok)); return refreshStatus(); })
+      .catch(function (e) { toast(String(e), false); });
   });
   $("btn-run").addEventListener("click", function () {
-    api("/api/run-once", { method: "POST" }).then(function (j) {
-      toast(j.message || "Backup started", true);
-      setTimeout(loadHistory, 1500);
-      return refreshStatus();
-    }).catch(function (e) { toast(String(e), false); });
+    api("/api/run-once", { method: "POST" })
+      .then(function (j) { toast(j.message || "Backup started", true); setTimeout(loadHistory, 1500); return refreshStatus(); })
+      .catch(function (e) { toast(String(e), false); });
   });
   $("cfg-form").addEventListener("submit", function (e) { e.preventDefault(); });
-  loadConfig().then(function () {
-    refreshStatus();
-    loadHistory();
-  });
+  loadConfig().then(function () { refreshStatus(); loadHistory(); });
   setInterval(refreshStatus, 5000);
 })();
 </script>
