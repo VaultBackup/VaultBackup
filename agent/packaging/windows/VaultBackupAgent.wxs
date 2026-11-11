@@ -18,7 +18,6 @@
       UpgradeCode="B7E4C2A1-9F3D-4E8B-A1C6-2D5E7F90B3A4">
 
     <Package
-        InstallerLocale="1033"
         Compressed="yes"
         InstallScope="perMachine"
         InstallPrivileges="elevated"
@@ -84,7 +83,7 @@
             ErrorControl="normal"
             Interactive="no"
             Vital="yes"
-            Arguments="-config &quot;[AgentDataFolder]config.json&quot; -webui 127.0.0.1:8787" />
+            Arguments="-config "[AgentDataFolder]config.json" -webui 127.0.0.1:8787" />
         <ServiceControl
             Id="StartService"
             Name="VaultBackupAgent"
@@ -112,7 +111,7 @@
         <CreateFolder>
           <Permission User="Administrators" GenericAll="yes" />
           <Permission User="SYSTEM" GenericAll="yes" />
-          <Permission User="Users" GenericRead="yes" />
+          <Permission User="Users" Read="yes" GenericExecute="yes" />
         </CreateFolder>
         <RegistryValue Root="HKLM"
                        Key="Software\VaultBackup\Agent"
@@ -169,12 +168,12 @@
 
     <CustomAction Id="SeedConfig"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="cmd /c if not exist &quot;[AgentDataFolder]config.json&quot; copy /Y &quot;[INSTALLFOLDER]config.example.json&quot; &quot;[AgentDataFolder]config.json&quot;"
+                  ExeCommand="cmd /c if not exist "[AgentDataFolder]config.json" copy /Y "[INSTALLFOLDER]config.example.json" "[AgentDataFolder]config.json""
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
     <InstallExecuteSequence>
-      <Custom Action="SeedConfig" After="InstallFiles" Before="StartServices">NOT REMOVE</Custom>
+      <Custom Action="SeedConfig" Before="StartServices">NOT REMOVE</Custom>
     </InstallExecuteSequence>
   </Product>
 </Wix>
