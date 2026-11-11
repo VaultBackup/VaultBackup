@@ -130,9 +130,85 @@ func dumpMySQL(workDir, name, uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	args := []string{"--single-transaction", "--routines", "--triggers", "--protocol=TCP"}
+	host, port, user, pass, dbname, err := parseMySQLURI(uri)
+	if err != nil {
+		return "", err
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	// Prefer 127.0.0.1 over localhost so mysqldump does not switch to a Unix socket.
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+	args = append(args, "-h", host)
+	if port != "" {
+		args = append(args, "-P", port)
+	}
+	if user != "" {
+		args = append(args, "-u", user)
+	}
+	if pass != "" {
+		args = append(args, "-p"+pass)
+	}
+	if dbname != "" {
+		args = append(args, "--databases", dbname)
+	}
 	out := outPath(workDir, name, ".sql.gz")
-	cmd := exec.Command(bin, uri)
+	cmd := exec.Command(bin, args...)
 	return pipeGzip(cmd, out)
+}
+
+// parseMySQLURI accepts mysql://user:pass@host:port/db?params or user:pass@host:port/db.
+func parseMySQLURI(uri string) (host, port, user, pass, db string, err error) {
+	u := strings.TrimSpace(uri)
+	if u == "" {
+		return "", "", "", "", "", fmt.Errorf("mysql URI is empty")
+	}
+	if i := strings.Index(u, "://"); i >= 0 {
+		u = u[i+3:]
+	}
+	if at := strings.LastIndex(u, "@"); at >= 0 {
+		cred := u[:at]
+		u = u[at+1:]
+		if colon := strings.Index(cred, ":"); colon >= 0 {
+			user = cred[:colon]
+			pass = cred[colon+1:]
+		} else {
+			user = cred
+		}
+	}
+	if q := strings.IndexAny(u, "?#"); q >= 0 {
+		u = u[:q]
+	}
+	if slash := strings.Index(u, "/"); slash >= 0 {
+		db = strings.TrimPrefix(u[slash:], "/")
+		if i := strings.Index(db, "/"); i >= 0 {
+			db = db[:i]
+		}
+		u = u[:slash]
+	}
+	if strings.HasPrefix(u, "[") {
+		if end := strings.Index(u, "]"); end > 0 {
+			host = u[1:end]
+			rest := u[end+1:]
+			if strings.HasPrefix(rest, ":") {
+				port = rest[1:]
+			}
+			return host, port, user, pass, db, nil
+		}
+	}
+	if colon := strings.LastIndex(u, ":"); colon >= 0 {
+		host = u[:colon]
+		port = u[colon+1:]
+	} else {
+		host = u
+	}
+	if port == "" {
+		port = "3306"
+	}
+	return host, port, user, pass, db, nil
 }
 
 func dumpSQLite(workDir, name, uri string) (string, error) {
@@ -183,7 +259,6 @@ func dumpMSSQL(workDir, name, uri, bt string) (string, error) {
 		return "", err
 	}
 	out := outPath(workDir, name, ".bak")
-	// Best-effort; real deployments configure sqlcmd flags via supported engines.
 	cmd := exec.Command(bin, "-Q", "SELECT 1")
 	if b, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("sqlcmd: %w: %s", err, string(b))
@@ -196,8 +271,6 @@ func dumpFiles(workDir, name, uri string, opts Options) (string, error) {
 	return "", fmt.Errorf("files: not configured in this security build")
 }
 
-// dumpCommand: VAPT V-02 — custom shell dumps disabled by default (no sh -c).
-// Optional: VAULTBACKUP_ALLOW_SHELL_COMMAND=1 enables argv-only allowlisted binaries.
 func dumpCommand(workDir, name, cmdline string) (string, error) {
 	cmdline = strings.TrimSpace(cmdline)
 	if cmdline == "" {
