@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>VaultBackup Agent</title><style>
+body{font-family:system-ui,sans-serif;background:#071018;color:#f8fafc;margin:0;padding:1rem}
+.shell{max-width:960px;margin:0 auto}.card{background:#0b1220;border:1px solid #1e293b;border-radius:12px;padding:1rem;margin:1rem 0}
+.btn{border:0;border-radius:10px;padding:.6rem 1rem;font-weight:700;cursor:pointer}.btn-primary{background:#22c55e;color:#fff}.btn-ghost{background:transparent;border:1px solid #334155;color:#cbd5e1}
+.probe{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin:.5rem 0;padding:.7rem;border:1px solid #334155;border-radius:10px}
+.probe.ok{border-color:#22c55e}.probe.bad{border-color:#f87171}.panel{display:none}.panel.on{display:block}.hidden{display:none!important}
+input,select,textarea{width:100%;background:#070d18;border:1px solid #334155;border-radius:8px;color:#fff;padding:.6rem;margin:.25rem 0}
+.nav,.actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem}.step{margin-right:.35rem}
+</style></head><body><div class="shell">
+<header><h1>VaultBackup Agent</h1><p>Private database backups to your own storage</p><div id="status-pill">Loading</div></header>
+<nav id="steps">
+<button type="button" class="step on" data-step="1">1 Token</button>
+<button type="button" class="step" data-step="2">2 Database</button>
+<button type="button" class="step" data-step="3">3 Destination</button>
+<button type="button" class="step" data-step="4">4 Review</button>
+</nav>
+<form id="cfg-form">
+<div class="panel on" data-panel="1"><div class="card"><h2>Token and schedule</h2>
+<label>Agent name</label><input id="name"/>
+<label>Schedule</label><input id="schedule" placeholder="0 3 * * *"/>
+<label>Retention days</label><input id="retention" type="number" value="14"/>
+<label>Token</label><input id="token" type="password"/>
+<div class="nav"><button type="button" class="btn btn-primary" id="next-1">Continue</button></div></div></div>
+<div class="panel" data-panel="2"><div class="card"><h2>Database</h2>
+<label>Engine</label><select id="db_type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mssql">SQL Server</option><option value="mongodb">MongoDB</option><option value="redis">Redis</option><option value="sqlite">SQLite</option></select>
+<label>Backup type</label><select id="backup_type"><option value="full">Full</option><option value="schema">Schema</option></select>
+<label>Connection URI</label><textarea id="db_uri"></textarea>
+<div class="probe" id="db-probe"><div class="msg" id="db-probe-msg">Test the URI before saving.</div>
+<button type="button" class="btn btn-ghost" id="btn-test-db">Test connection</button></div>
+<div class="nav"><button type="button" class="btn btn-ghost" id="back-2">Back</button><button type="button" class="btn btn-primary" id="next-2">Continue</button></div></div></div>
+<div class="panel" data-panel="3"><div class="card"><h2>Destination</h2>
+<label>Mode</label><select id="dest_mode"><option value="local">Local</option><option value="s3">S3</option><option value="azure">Azure</option><option value="webdav">WebDAV</option><option value="sftp">SFTP</option></select>
+<div id="dest-local"><label>Local directory</label><input id="local_dir"/></div>
+<div id="dest-s3" class="hidden"><input id="s3_endpoint" placeholder="endpoint"/><input id="s3_region" placeholder="region"/><input id="s3_bucket" placeholder="bucket"/><input id="s3_prefix" placeholder="prefix"/><input id="s3_access_key" placeholder="access key"/><input id="s3_secret_key" type="password" placeholder="secret"/></div>
+<div id="dest-azure" class="hidden"><input id="azure_account"/><input id="azure_container"/><input id="azure_key" type="password"/><input id="azure_prefix"/></div>
+<div id="dest-webdav" class="hidden"><input id="webdav_url"/><input id="webdav_user"/><input id="webdav_password" type="password"/></div>
+<div id="dest-sftp" class="hidden"><input id="sftp_host"/><input id="sftp_user"/><input id="sftp_path"/><input id="sftp_password" type="password"/><input id="sftp_key_file"/></div>
+<div class="probe" id="dest-probe"><div class="msg" id="dest-probe-msg">Test the destination before saving.</div>
+<button type="button" class="btn btn-ghost" id="btn-test-dest">Test connection</button></div>
+<label><input type="checkbox" id="encrypt" checked/> Encrypt</label>
+<div class="nav"><button type="button" class="btn btn-ghost" id="back-3">Back</button><button type="button" class="btn btn-primary" id="next-3">Continue</button></div></div></div>
+<div class="panel" data-panel="4"><div class="card"><h2>Review</h2><pre id="review">—</pre>
+<div class="probe" id="review-probes"><div class="msg" id="review-probe-msg">Both tests must pass before save.</div>
+<button type="button" class="btn btn-ghost" id="btn-review-test-db">Test database</button>
+<button type="button" class="btn btn-ghost" id="btn-review-test-dest">Test destination</button></div>
+<div class="actions"><button type="button" class="btn btn-primary" id="btn-save">Save configuration</button>
+<button type="button" class="btn btn-ghost" id="btn-license">Test license</button>
+<button type="button" class="btn btn-ghost" id="btn-run">Run backup once</button></div>
+<button type="button" class="btn btn-ghost" id="back-4">Back</button></div>
+<div class="card"><h2>Live status</h2><pre id="status">—</pre></div>
+<div class="card"><h2>Recent history</h2><div id="history">—</div></div></div>
+</form>
+<div id="toast" class="hidden"></div>
+</div>
+<script>
+(function(){
+function $(id){return document.getElementById(id)}
+function api(url,opt){return fetch(url,opt||{}).then(function(r){return r.json()})
+}
+var probeState={db:false,dest:false}
+function toast(msg,ok){var t=$("toast");t.textContent=msg;t.className=ok?"ok":"bad";setTimeout(function(){t.className="hidden"},2500)}
+function setStep(n){document.querySelectorAll(".step").forEach(function(b){b.classList.toggle("on",Number(b.getAttribute("data-step"))===n)});document.querySelectorAll(".panel").forEach(function(p){p.classList.toggle("on",p.getAttribute("data-panel")===String(n)});if(n===4){fillReview();refreshReviewProbeMsg()}}
+document.querySelectorAll(".step").forEach(function(b){b.addEventListener("click",function(){setStep(Number(b.getAttribute("data-step"))})})
+$("next-1").addEventListener("click",function(){setStep(2)})
+$("next-2").addEventListener("click",function(){if(!probeState.db){toast("Test database first",false);return}setStep(3)})
+$("next-3").addEventListener("click",function(){if(!probeState.dest){toast("Test destination first",false);return}setStep(4)})
+$("back-2").addEventListener("click",function(){setStep(1)})
+$("back-3").addEventListener("click",function(){setStep(2)})
+$("back-4").addEventListener("click",function(){setStep(3)})
+function toggleDest(){var m=$("dest_mode").value;["local","s3","azure","webdav","sftp"].forEach(function(k){var el=$("dest-"+k);if(el)el.classList.toggle("hidden",m!==k)})}
+$("dest_mode").addEventListener("change",function(){toggleDest();probeState.dest=false;setDestProbe("","Test the destination before saving.")})
+function refreshReviewProbeMsg(){var el=$("review-probe-msg"),box=$("review-probes");if(!el||!box)return;box.classList.remove("ok","bad");if(probeState.db&&probeState.dest){box.classList.add("ok");el.textContent="Database and destination tests passed — you can save."}else{box.classList.add("bad");var m=[];if(!probeState.db)m.push("database");if(!probeState.dest)m.push("destination");el.textContent="Still need successful test(s): "+m.join(" and ")+"."}}
+function setProbe(state,msg){var box=$("db-probe"),el=$("db-probe-msg");box.classList.remove("ok","bad","busy");if(state)box.classList.add(state);el.textContent=msg;if(state==="ok")probeState.db=true;else if(state==="bad"||state==="busy")probeState.db=false;refreshReviewProbeMsg()}
+function setDestProbe(state,msg){var box=$("dest-probe"),el=$("dest-probe-msg");box.classList.remove("ok","bad","busy");if(state)box.classList.add(state);el.textContent=msg;if(state==="ok")probeState.dest=true;else if(state==="bad"||state==="busy")probeState.dest=false;refreshReviewProbeMsg()}
+function runDbTest(btn){var type=$("db_type").value,uri=$("db_uri").value.trim();if(!uri){setProbe("bad","Enter a connection URI first.");return}if(btn)btn.disabled=true;setProbe("busy","Testing…");api("/api/test-db",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:type,uri:uri})}).then(function(j){if(j.ok){setProbe("ok","Reachable");toast("Database reachable",true)}else{setProbe("bad",j.detail||j.status||"Failed");toast(j.detail||"Failed",false)}}).catch(function(e){setProbe("bad",String(e))}).then(function(){if(btn)btn.disabled=false})}
+function runDestTest(btn){var payload={mode:$("dest_mode").value,local_dir:$("local_dir").value.trim(),s3_endpoint:$("s3_endpoint").value.trim(),s3_region:$("s3_region").value.trim(),s3_bucket:$("s3_bucket").value.trim(),s3_prefix:$("s3_prefix").value.trim(),s3_access_key:$("s3_access_key").value.trim(),s3_secret_key:$("s3_secret_key").value.trim(),azure_account:$("azure_account").value.trim(),azure_container:$("azure_container").value.trim(),azure_key:$("azure_key").value.trim(),azure_prefix:$("azure_prefix").value.trim(),webdav_url:$("webdav_url").value.trim(),webdav_user:$("webdav_user").value.trim(),webdav_password:$("webdav_password").value.trim(),sftp_host:$("sftp_host").value.trim(),sftp_user:$("sftp_user").value.trim(),sftp_password:$("sftp_password").value.trim(),sftp_key_file:$("sftp_key_file").value.trim(),sftp_path:$("sftp_path").value.trim()};if(btn)btn.disabled=true;setDestProbe("busy","Testing destination…");api("/api/test-dest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).then(function(j){if(j.ok){setDestProbe("ok","Reachable"+(j.detail?" · "+j.detail:""));toast("Destination reachable",true)}else{setDestProbe("bad",j.detail||j.status||"Failed");toast(j.detail||"Failed",false)}}).catch(function(e){setDestProbe("bad",String(e))}).then(function(){if(btn)btn.disabled=false})}
+$("btn-test-db").addEventListener("click",function(){runDbTest($("btn-test-db"))})
+$("btn-test-dest").addEventListener("click",function(){runDestTest($("btn-test-dest"))})
+if($("btn-review-test-db"))$("btn-review-test-db").addEventListener("click",function(){runDbTest($("btn-review-test-db"))})
+if($("btn-review-test-dest"))$("btn-review-test-dest").addEventListener("click",function(){runDestTest($("btn-review-test-dest"))})
+function bodyFromForm(){return{name:$("name").value.trim(),schedule:$("schedule").value.trim()||"0 3 * * *",retention:Number($("retention").value)||14,license:{token:$("token").value.trim()},database:{type:$("db_type").value,uri:$("db_uri").value.trim(),backup_type:$("backup_type").value},destination:{mode:$("dest_mode").value,local_dir:$("local_dir").value.trim(),s3_endpoint:$("s3_endpoint").value.trim(),s3_region:$("s3_region").value.trim(),s3_bucket:$("s3_bucket").value.trim(),s3_prefix:$("s3_prefix").value.trim(),s3_access_key:$("s3_access_key").value.trim(),s3_secret_key:$("s3_secret_key").value.trim(),azure_account:$("azure_account").value.trim(),azure_container:$("azure_container").value.trim(),azure_key:$("azure_key").value.trim(),azure_prefix:$("azure_prefix").value.trim(),webdav_url:$("webdav_url").value.trim(),webdav_user:$("webdav_user").value.trim(),webdav_password:$("webdav_password").value.trim(),sftp_host:$("sftp_host").value.trim(),sftp_user:$("sftp_user").value.trim(),sftp_password:$("sftp_password").value.trim(),sftp_key_file:$("sftp_key_file").value.trim(),sftp_path:$("sftp_path").value.trim()},security:{encrypt:!!$("encrypt").checked}}}
+function fillReview(){var b=bodyFromForm();$("review").textContent="Name: "+b.name+"\nSchedule: "+b.schedule+"\nDB: "+b.database.type+"\nDest: "+b.destination.mode+"\nEncrypt: "+b.security.encrypt}
+$("btn-save").addEventListener("click",function(){if(!probeState.db){toast("Test database first",false);setStep(2);return}if(!probeState.dest){toast("Test destination first",false);setStep(3);return}api("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(bodyFromForm())}).then(function(j){toast(j.ok?"Saved":"Save failed",!!j.ok)}).catch(function(e){toast(String(e),false)})})
+$("btn-license").addEventListener("click",function(){api("/api/test-license",{method:"POST"}).then(function(j){toast(j.allowed||j.ok?"License OK":(j.reason||"Failed"),!!(j.allowed||j.ok))})})
+$("btn-run").addEventListener("click",function(){api("/api/run-once",{method:"POST"}).then(function(){toast("Backup started",true)})})
+function refreshStatus(){api("/api/status").then(function(j){$("status").textContent=JSON.stringify(j,null,2);$("status-pill").textContent=j.licenseOk?"License OK":"License"})}
+function refreshHistory(){api("/api/history").then(function(j){var list=j.history||[];$("history").innerHTML=list.map(function(e){return "<div>"+(e.status||"")+" "+(e.started||"")+" "+(e.error||e.message||"")+"</div>"}).join("")||"No history"})}
+api("/api/config").then(function(j){var c=j.config||{};if(c.name)$("name").value=c.name;if(c.schedule)$("schedule").value=c.schedule;if(c.database){if(c.database.type)$("db_type").value=c.database.type;if(c.database.uri)$("db_uri").value=c.database.uri}if(c.destination){if(c.destination.mode)$("dest_mode").value=c.destination.mode;if(c.destination.local_dir)$("local_dir").value=c.destination.local_dir}toggleDest()}).catch(function(){})
+refreshStatus();refreshHistory();setInterval(function(){refreshStatus();refreshHistory()},4000)
+})();
+</script></body></html>
