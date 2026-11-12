@@ -142,7 +142,8 @@ jobs:
           & $candle "-dVersion=$ver" "-dLicenseRtf=$lic" "-arch" "x64" "-out" "out\VaultBackupAgent.wixobj" "VaultBackupAgent.wxs"
           if ($LASTEXITCODE -ne 0) { throw "candle failed" }
           $msiName = "vaultbackup-agent-$ver-x64.msi"
-          & $light "-ext" "WixUIExtension" "-out" "out\$msiName" "out\VaultBackupAgent.wixobj"
+          # ICE38/43/57: Start Menu shortcuts + HKLM KeyPath on per-machine install (expected pattern)
+          & $light "-ext" "WixUIExtension" "-sice:ICE38" "-sice:ICE43" "-sice:ICE57" "-out" "out\$msiName" "out\VaultBackupAgent.wixobj"
           if ($LASTEXITCODE -ne 0) { throw "light failed" }
           $repoRoot = Resolve-Path "..\..\.."
           Copy-Item "out\$msiName" (Join-Path $repoRoot "vaultbackup-agent-windows-amd64.msi") -Force
