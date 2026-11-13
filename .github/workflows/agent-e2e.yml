@@ -7,6 +7,16 @@ on:
         description: "Agent license token (prefer repo secret AGENT_LICENSE_TOKEN)"
         required: false
         type: string
+      os:
+        description: "Platform to test"
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
   push:
     branches: [main]
     paths:
@@ -14,7 +24,7 @@ on:
       - 'agent/**'
 
 concurrency:
-  group: agent-e2e
+  group: agent-e2e-${{ github.event.inputs.os || 'all' }}
   cancel-in-progress: true
 
 jobs:
@@ -22,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ fromJSON(github.event.inputs.os == 'ubuntu-latest' && '["ubuntu-latest"]' || github.event.inputs.os == 'windows-latest' && '["windows-latest"]' || github.event.inputs.os == 'macos-latest' && '["macos-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     defaults:
@@ -236,7 +246,6 @@ jobs:
         if: steps.lic.outputs.ok != 'true'
         run: |
           set -euo pipefail
-          # Binary runs; Web UI came up; DB path probe was OK in status JSON.
           echo "Smoke OK on ${{ runner.os }} (licensed path skipped: token bound to another device)"
           test -x "$BIN" || test -f "$BIN"
 
