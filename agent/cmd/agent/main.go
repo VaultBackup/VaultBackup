@@ -24,7 +24,7 @@ import (
 	"github.com/vaultbackup/agent/internal/webui"
 )
 
-var version = "1.2.3"
+var version = "1.2.6"
 
 func main() {
 	// MSI installs the agent as a Windows service. The EXE must speak SCM protocol
@@ -145,7 +145,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		PreferNativeTools: cfg.Database.PreferNativeTools,
 	})
 	if err != nil {
-		_ = history.Append(history.Entry{
+		_ = history.Complete(start, history.Entry{
 			Started: start, Finished: time.Now(), Status: "failed", Type: bt,
 			Error: secure.RedactText(err.Error()), Duration: time.Since(start).String(),
 		})
@@ -159,11 +159,19 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	if cfg.Security.Encrypt {
 		key, kerr := crypto.LoadOrCreateKey(cfg.Security.KeyFile)
 		if kerr != nil {
+			_ = history.Complete(start, history.Entry{
+				Started: start, Finished: time.Now(), Status: "failed", Type: bt,
+				Error: secure.RedactText(kerr.Error()), Duration: time.Since(start).String(),
+			})
 			_ = license.PushCritical(cfg, "encrypt key: "+kerr.Error())
 			return kerr
 		}
 		encPath := res.Path + ".vbenc"
 		if err := crypto.EncryptFile(res.Path, encPath, key); err != nil {
+			_ = history.Complete(start, history.Entry{
+				Started: start, Finished: time.Now(), Status: "failed", Type: bt,
+				Error: secure.RedactText(err.Error()), Duration: time.Since(start).String(),
+			})
 			notify.Failure(cfg, "Encrypt failed", err.Error())
 			_ = license.PushCritical(cfg, "encrypt failed: "+err.Error())
 			return err
@@ -177,7 +185,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 
 	remote, err := upload.Put(cfg, uploadPath)
 	if err != nil {
-		_ = history.Append(history.Entry{
+		_ = history.Complete(start, history.Entry{
 			Started: start, Finished: time.Now(), Status: "failed", Type: bt,
 			Error: secure.RedactText(err.Error()), Path: uploadPath, Duration: time.Since(start).String(),
 		})
@@ -188,7 +196,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	}
 
 	dur := time.Since(start)
-	_ = history.Append(history.Entry{
+	_ = history.Complete(start, history.Entry{
 		Started: start, Finished: time.Now(), Status: "ok", Type: bt,
 		SizeBytes: res.SizeBytes, Path: remote, Message: "uploaded", Duration: dur.String(),
 	})
