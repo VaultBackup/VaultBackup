@@ -67,12 +67,11 @@ func NormalizeType(t string) string {
 }
 
 // Dump runs a backup for the given type/uri into workDir.
-// Prefer DumpWithOptions when VSS or native-tool flags are needed.
 func Dump(workDir, dbType, uri, backupType string) (Result, error) {
 	return DumpWithOptions(workDir, dbType, uri, DefaultOptions(backupType))
 }
 
-// DumpWithOptions runs a backup with platform options (VSS, native tools, …).
+// DumpWithOptions runs a backup with platform options (VSS, native tools, schema-only, …).
 func DumpWithOptions(workDir, dbType, uri string, opts Options) (Result, error) {
 	start := time.Now()
 	t := NormalizeType(dbType)
@@ -86,11 +85,12 @@ func DumpWithOptions(workDir, dbType, uri string, opts Options) (Result, error) 
 		err  error
 	)
 	preferNative := opts.PreferNativeTools
+	schemaOnly := opts.SchemaOnly()
 	switch t {
 	case "postgres", "cockroach":
-		path, err = dumpPostgres(workDir, outName, uri, t, preferNative)
+		path, err = dumpPostgres(workDir, outName, uri, t, preferNative, schemaOnly)
 	case "mysql":
-		path, err = dumpMySQL(workDir, outName, uri, preferNative)
+		path, err = dumpMySQL(workDir, outName, uri, preferNative, schemaOnly)
 	case "sqlite":
 		path, err = dumpSQLite(workDir, outName, uri, preferNative)
 	case "mongodb":
@@ -98,7 +98,7 @@ func DumpWithOptions(workDir, dbType, uri string, opts Options) (Result, error) 
 	case "redis":
 		path, err = dumpRedis(workDir, outName, uri, preferNative)
 	case "mssql":
-		path, err = dumpMSSQL(workDir, outName, uri, bt)
+		path, err = dumpMSSQL(workDir, outName, uri, bt, schemaOnly)
 	case "files":
 		path, err = dumpFiles(workDir, outName, uri, opts)
 	case "command":
@@ -145,9 +145,9 @@ func outPath(workDir, name, ext string) string {
 	return filepath.Join(workDir, name+ext)
 }
 
-func dumpPostgres(workDir, name, uri, kind string, preferNative bool) (string, error) {
+func dumpPostgres(workDir, name, uri, kind string, preferNative bool, schemaOnly bool) (string, error) {
 	if !preferNative {
-		return dumpPostgresBuiltin(workDir, name, uri)
+		return dumpPostgresBuiltin(workDir, name, uri, schemaOnly)
 	}
 	bin, err := requireBin("pg_dump")
 	if err != nil {
@@ -158,13 +158,17 @@ func dumpPostgres(workDir, name, uri, kind string, preferNative bool) (string, e
 				return pipeGzip(cmd, out)
 			}
 		}
-		return dumpPostgresBuiltin(workDir, name, uri)
+		return dumpPostgresBuiltin(workDir, name, uri, schemaOnly)
 	}
 	out := outPath(workDir, name, ".sql.gz")
-	cmd := exec.Command(bin, "--dbname="+uri, "--no-owner", "--no-acl")
+	args := []string{"--dbname=" + uri, "--no-owner", "--no-acl"}
+	if schemaOnly {
+		args = append(args, "--schema-only")
+	}
+	cmd := exec.Command(bin, args...)
 	path, err := pipeGzip(cmd, out)
 	if err != nil {
-		if p2, err2 := dumpPostgresBuiltin(workDir, name, uri); err2 == nil {
+		if p2, err2 := dumpPostgresBuiltin(workDir, name, uri, schemaOnly); err2 == nil {
 			return p2, nil
 		}
 		return "", err
@@ -172,15 +176,18 @@ func dumpPostgres(workDir, name, uri, kind string, preferNative bool) (string, e
 	return path, nil
 }
 
-func dumpMySQL(workDir, name, uri string, preferNative bool) (string, error) {
+func dumpMySQL(workDir, name, uri string, preferNative bool, schemaOnly bool) (string, error) {
 	if !preferNative {
-		return dumpMySQLBuiltin(workDir, name, uri)
+		return dumpMySQLBuiltin(workDir, name, uri, schemaOnly)
 	}
 	bin, err := requireBin("mysqldump", "mariadb-dump")
 	if err != nil {
-		return dumpMySQLBuiltin(workDir, name, uri)
+		return dumpMySQLBuiltin(workDir, name, uri, schemaOnly)
 	}
 	args := []string{"--single-transaction", "--routines", "--triggers", "--protocol=TCP"}
+	if schemaOnly {
+		args = append(args, "--no-data")
+	}
 	host, port, user, pass, dbname, err := parseMySQLURI(uri)
 	if err != nil {
 		return "", err
@@ -208,7 +215,7 @@ func dumpMySQL(workDir, name, uri string, preferNative bool) (string, error) {
 	cmd := exec.Command(bin, args...)
 	path, err := pipeGzip(cmd, out)
 	if err != nil {
-		if p2, err2 := dumpMySQLBuiltin(workDir, name, uri); err2 == nil {
+		if p2, err2 := dumpMySQLBuiltin(workDir, name, uri, schemaOnly); err2 == nil {
 			return p2, nil
 		}
 		return "", err
@@ -340,14 +347,13 @@ func dumpRedis(workDir, name, uri string, preferNative bool) (string, error) {
 	return out, nil
 }
 
-func dumpMSSQL(workDir, name, uri, backupType string) (string, error) {
-	// Prefer built-in pure-Go dump; sqlcmd native backup is host-specific.
-	if path, err := dumpMSSQLBuiltin(workDir, name, uri); err == nil {
+func dumpMSSQL(workDir, name, uri, backupType string, schemaOnly bool) (string, error) {
+	if path, err := dumpMSSQLBuiltin(workDir, name, uri, schemaOnly); err == nil {
 		return path, nil
 	} else if _, e2 := requireBin("sqlcmd"); e2 != nil {
 		return "", err
 	}
-	return dumpMSSQLBuiltin(workDir, name, uri)
+	return dumpMSSQLBuiltin(workDir, name, uri, schemaOnly)
 }
 
 func dumpFiles(workDir, name, src string, opts Options) (string, error) {
@@ -378,7 +384,6 @@ func dumpFiles(workDir, name, src string, opts Options) (string, error) {
 	}
 	out := outPath(workDir, name, ".tar.gz")
 	if err := tarGzDir(staged, out); err != nil {
-		// fallback single file gzip
 		if !st.IsDir() {
 			tmp := outPath(workDir, name, ".bin")
 			if e := copyFilePath(src, tmp); e == nil {
