@@ -25,7 +25,7 @@ import (
 	"github.com/vaultbackup/agent/internal/webui"
 )
 
-var version = "1.2.7"
+var version = "1.2.8"
 
 func main() {
 	if isWindowsService() {
@@ -122,6 +122,16 @@ func firstEnv(keys ...string) string {
 
 func doBackup(cfg config.Config, typeOverride string) error {
 	ok, reason := license.Allowed()
+	if !ok {
+		// Cold start / -once: run an online check before blocking.
+		if st, err := license.Check(cfg); err == nil && st.Allowed {
+			ok, reason = true, ""
+		} else if err != nil {
+			reason = err.Error()
+		} else if st.Reason != "" {
+			reason = st.Reason
+		}
+	}
 	if !ok {
 		msg := "backup blocked: " + reason
 		log.Print(msg)
@@ -223,7 +233,6 @@ func applyRetention(cfg config.Config) {
 	if err := pol.Apply(cfg.WorkDir); err != nil {
 		log.Printf("retention workdir: %v", err)
 	}
-	// Destination retention on every direct storage backend (list + delete oldest).
 	if err := upload.ApplyRetention(cfg, keep); err != nil {
 		log.Printf("retention destination (%s): %v", cfg.Destination.Mode, err)
 	}
@@ -329,7 +338,6 @@ func setupLogging(cfg config.Config) {
 	}
 }
 
-// runRestore decrypts a local file, or downloads a remote storage key first then decrypts.
 func runRestore(configPath, src, dst string) {
 	cfg := config.LoadSoft(configPath)
 	localSrc := src
