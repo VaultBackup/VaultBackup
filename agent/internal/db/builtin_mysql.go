@@ -217,11 +217,11 @@ func sqlLiteral(v any) string {
 }
 
 func quoteMyString(s string) string {
-	s = strings.ReplaceAll(s, `\\`, `\\\\`)
-	s = strings.ReplaceAll(s, `'`, `\\'`)
-	s = strings.ReplaceAll(s, "\\x00", `\\0`)
-	s = strings.ReplaceAll(s, "\n", `\\n`)
-	s = strings.ReplaceAll(s, "\r", `\\r`)
-	s = strings.ReplaceAll(s, "\\x1a", `\\Z`)
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `'`, `\'`)
+	s = strings.ReplaceAll(s, "\x00", `\0`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	s = strings.ReplaceAll(s, "\r", `\r`)
+	s = strings.ReplaceAll(s, "\x1a", `\Z`)
 	return "'" + s + "'"
 }
