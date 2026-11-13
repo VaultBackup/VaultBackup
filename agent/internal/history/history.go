@@ -45,11 +45,65 @@ func Append(e Entry) error {
 	return save(list)
 }
 
-// List returns the most recent entries.
+// Complete replaces a matching "running" entry (same Started) with the final
+// status, or appends if none is found. Prevents orphan "running" rows.
+func Complete(started time.Time, e Entry) error {
+	mu.Lock()
+	defer mu.Unlock()
+	list, _ := load()
+	if e.Finished.IsZero() {
+		e.Finished = time.Now()
+	}
+	for i := range list {
+		if list[i].Status == "running" && almostSameTime(list[i].Started, started) {
+			list[i] = e
+			return save(list)
+		}
+	}
+	for i := range list {
+		if list[i].Status == "running" && (e.Type == "" || list[i].Type == e.Type) {
+			list[i] = e
+			return save(list)
+		}
+	}
+	list = append([]Entry{e}, list...)
+	if len(list) > max {
+		list = list[:max]
+	}
+	return save(list)
+}
+
+func almostSameTime(a, b time.Time) bool {
+	if a.Equal(b) {
+		return true
+	}
+	d := a.Sub(b)
+	if d < 0 {
+		d = -d
+	}
+	return d < time.Second
+}
+
+// List returns the most recent entries (stale "running" older than 6h are marked failed).
 func List(limit int) []Entry {
 	mu.Lock()
 	defer mu.Unlock()
 	list, _ := load()
+	changed := false
+	cutoff := time.Now().Add(-6 * time.Hour)
+	for i := range list {
+		if list[i].Status == "running" && list[i].Started.Before(cutoff) {
+			list[i].Status = "failed"
+			list[i].Finished = list[i].Started
+			if list[i].Error == "" {
+				list[i].Error = "stale running entry (agent restarted or crashed)"
+			}
+			changed = true
+		}
+	}
+	if changed {
+		_ = save(list)
+	}
 	if limit > 0 && len(list) > limit {
 		return list[:limit]
 	}
