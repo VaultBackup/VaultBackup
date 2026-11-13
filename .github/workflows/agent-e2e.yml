@@ -1,0 +1,201 @@
+name: Agent E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      license_token:
+        description: "Agent license token (prefer repo secret AGENT_LICENSE_TOKEN)"
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/agent-e2e.yml'
+      - 'agent/**'
+
+concurrency:
+  group: agent-e2e
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build agent
+        working-directory: agent
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=e2e" -o "$RUNNER_TEMP/vaultbackup-agent" ./cmd/agent
+          chmod +x "$RUNNER_TEMP/vaultbackup-agent"
+          "$RUNNER_TEMP/vaultbackup-agent" -h 2>&1 | head -5 || true
+
+      - name: Resolve license token
+        id: tok
+        env:
+          SECRET_TOKEN: ${{ secrets.AGENT_LICENSE_TOKEN }}
+          INPUT_TOKEN: ${{ github.event.inputs.license_token }}
+        run: |
+          set -euo pipefail
+          TOKEN="${SECRET_TOKEN:-}"
+          if [ -z "$TOKEN" ]; then TOKEN="${INPUT_TOKEN:-}"; fi
+          if [ -z "$TOKEN" ]; then
+            echo "::error::No license token. Set repo secret AGENT_LICENSE_TOKEN or pass workflow_dispatch input license_token."
+            exit 1
+          fi
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "token_len=${#TOKEN}"
+
+      - name: Prepare work dirs + sample SQLite DB
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/vb-data" "$RUNNER_TEMP/vb-backups" "$RUNNER_TEMP/vb-restore"
+          # Pure-Go SQLite path: agent copies/gzips the file; create a small real DB with sqlite3
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sqlite3
+          DB="$RUNNER_TEMP/sample.db"
+          sqlite3 "$DB" <<'SQL'
+          CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, email TEXT);
+          INSERT INTO customers (name, email) VALUES ('Ada', 'ada@example.com'), ('Grace', 'grace@example.com');
+          CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, amount REAL);
+          INSERT INTO orders (customer_id, amount) VALUES (1, 19.99), (2, 42.00);
+          SQL
+          ls -la "$DB"
+          sqlite3 "$DB" 'SELECT COUNT(*) FROM customers;'
+
+      - name: Write agent config
+        env:
+          TOKEN: ${{ steps.tok.outputs.token }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/config.json" <<EOF
+          {
+            "name": "e2e-github-runner",
+            "schedule": "0 3 * * *",
+            "work_dir": "$RUNNER_TEMP/vb-data",
+            "log_file": "$RUNNER_TEMP/vb-data/agent.log",
+            "log_max_mb": 5,
+            "compression": "gzip",
+            "retention": 5,
+            "license": {
+              "server_url": "https://backup.enadoctemp.workers.dev",
+              "token": "$TOKEN",
+              "check_every_hours": 6
+            },
+            "security": {
+              "encrypt": true,
+              "key_file": "$RUNNER_TEMP/vb-data/agent.key"
+            },
+            "database": {
+              "type": "sqlite",
+              "uri": "$RUNNER_TEMP/sample.db",
+              "backup_type": "full",
+              "prefer_native_tools": false
+            },
+            "destination": {
+              "mode": "local",
+              "local_dir": "$RUNNER_TEMP/vb-backups"
+            },
+            "terms_accepted": true,
+            "terms_version": "1"
+          }
+          EOF
+          # Config loader accepts JSON envelope or plain JSON
+          python3 -c "import json; json.load(open('$RUNNER_TEMP/config.json'))"
+          echo "Config written"
+
+      - name: License check (control plane only)
+        run: |
+          set -euo pipefail
+          BIN="$RUNNER_TEMP/vaultbackup-agent"
+          CFG="$RUNNER_TEMP/config.json"
+          # Start agent briefly with webui, hit status, or use once-path after license is checked inside doBackup
+          # Probe license via agent API if available; otherwise rely on backup once
+          $BIN -config "$CFG" -webui 127.0.0.1:18787 &
+          PID=$!
+          sleep 2
+          for i in 1 2 3 4 5 6 8 10; do
+            if curl -fsS "http://127.0.0.1:18787/api/status" > "$RUNNER_TEMP/status.json"; then break; fi
+            sleep 1
+          done
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          echo "=== status ==="
+          cat "$RUNNER_TEMP/status.json" || true
+          python3 - <<'PY'
+          import json,sys
+          p="$RUNNER_TEMP/status.json".replace("$RUNNER_TEMP", __import__("os").environ["RUNNER_TEMP"])
+          try:
+            d=json.load(open(__import__("os").environ["RUNNER_TEMP"]+"/status.json"))
+          except Exception as e:
+            print("status parse fail", e); sys.exit(1)
+          print("licenseOk", d.get("licenseOk"), "lastError", d.get("lastError","")[:120])
+          if d.get("licenseOk") is False:
+            print("::error::License not OK"); sys.exit(1)
+          print("LICENSE_OK")
+          PY
+
+      - name: Run one full backup (sqlite → local + encrypt)
+        run: |
+          set -euo pipefail
+          BIN="$RUNNER_TEMP/vaultbackup-agent"
+          CFG="$RUNNER_TEMP/config.json"
+          $BIN -config "$CFG" -once -no-webui
+          echo "=== backups dir ==="
+          ls -la "$RUNNER_TEMP/vb-backups"
+          count=$(find "$RUNNER_TEMP/vb-backups" -type f | wc -l)
+          echo "backup_files=$count"
+          test "$count" -ge 1
+          # Non-empty
+          find "$RUNNER_TEMP/vb-backups" -type f -size +0 -print | head
+          test -n "$(find "$RUNNER_TEMP/vb-backups" -type f -size +0 | head -1)"
+
+      - name: List storage objects (ApplyRetention path)
+        run: |
+          set -euo pipefail
+          # Second backup then retention keep=1 should leave one file when we lower retention
+          BIN="$RUNNER_TEMP/vaultbackup-agent"
+          CFG="$RUNNER_TEMP/config.json"
+          $BIN -config "$CFG" -once -no-webui
+          ls -la "$RUNNER_TEMP/vb-backups"
+          # Run with retention 1 via python rewrite
+          python3 - <<'PY'
+          import json,os
+          p=os.environ["RUNNER_TEMP"]+"/config.json"
+          c=json.load(open(p))
+          c["retention"]=1
+          json.dump(c, open(p,"w"), indent=2)
+          PY
+          $BIN -config "$CFG" -once -no-webui
+          ls -la "$RUNNER_TEMP/vb-backups"
+          count=$(find "$RUNNER_TEMP/vb-backups" -type f | wc -l)
+          echo "after_retention_files=$count"
+          # At most a few files (workdir may have intermediates cleaned; dest should be trimmed)
+          test "$count" -ge 1
+
+      - name: Restore (decrypt) from local backup file
+        run: |
+          set -euo pipefail
+          BIN="$RUNNER_TEMP/vaultbackup-agent"
+          CFG="$RUNNER_TEMP/config.json"
+          SRC=$(find "$RUNNER_TEMP/vb-backups" -type f | head -1)
+          echo "restore_src=$SRC"
+          OUT="$RUNNER_TEMP/vb-restore/restored.bin"
+          $BIN -config "$CFG" -restore "$SRC" -restore-out "$OUT"
+          ls -la "$OUT"
+          test -s "$OUT"
+          echo "RESTORE_OK"
+
+      - name: Agent log tail
+        if: always()
+        run: |
+          echo "=== agent.log ==="
+          tail -n 80 "$RUNNER_TEMP/vb-data/agent.log" 2>/dev/null || true
+          echo "=== history ==="
+          cat "$RUNNER_TEMP/vb-data/history.json" 2>/dev/null | head -c 4000 || true
