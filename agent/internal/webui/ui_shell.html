@@ -228,7 +228,7 @@ pre.status{
             <input type="checkbox" id="terms_accept"/>
             <span>I have read and agree to the VaultBackup Agent EULA and Terms of Use.</span>
           </label>
-          <div class="hint">Required on every agent before configuration can be saved.</div>
+          <div class="hint">Required the first time; re-shown only if terms version changes.</div>
         </div>
         <div class="nav">
           <span></span>
@@ -247,12 +247,20 @@ pre.status{
           <div class="field">
             <label for="db_type">Database engine</label>
             <select id="db_type">
-              <option value="postgres">PostgreSQL</option>
-              <option value="mysql">MySQL / MariaDB</option>
-              <option value="mssql">SQL Server</option>
-              <option value="mongodb">MongoDB</option>
-              <option value="redis">Redis</option>
-              <option value="sqlite">SQLite / Turso</option>
+              <option value="postgres">PostgreSQL / Neon / Supabase</option>
+              <option value="mysql">MySQL / MariaDB / TiDB</option>
+              <option value="mssql">SQL Server / Azure SQL</option>
+              <option value="mongodb">MongoDB / DocumentDB</option>
+              <option value="redis">Redis / Valkey / KeyDB</option>
+              <option value="sqlite">SQLite / Turso / libSQL</option>
+              <option value="cockroach">CockroachDB</option>
+              <option value="oracle">Oracle (expdp / exp / RMAN)</option>
+              <option value="files">Files / folders</option>
+              <option value="quickbooks">QuickBooks Desktop</option>
+              <option value="sage50">Sage 50 / Peachtree</option>
+              <option value="access">Microsoft Access</option>
+              <option value="as400">IBM i / AS/400</option>
+              <option value="command">Custom command (allowlisted)</option>
             </select>
           </div>
           <div class="field">
@@ -266,7 +274,7 @@ pre.status{
         <div class="field">
           <label for="db_uri">Connection URI</label>
           <textarea id="db_uri" placeholder="postgres://user:pass@127.0.0.1:5432/db?sslmode=disable"></textarea>
-          <div class="hint">Prefer 127.0.0.1 over localhost if you hit IPv6 connection issues.</div>
+          <div class="hint">Prefer 127.0.0.1 over localhost if you hit IPv6 issues. Built-in dumps work without installing client tools (mysqldump/pg_dump). Oracle needs Oracle client tools; AS/400 needs SSH.</div>
         </div>
         <div class="probe" id="db-probe">
           <div class="msg" id="db-probe-msg">Test the connection so we know this machine can reach the database.</div>
@@ -380,7 +388,7 @@ pre.status{
           <h2>Live status</h2>
           <p>Refreshes every few seconds while this page is open.</p>
         </div>
-        <pre id="status" class="status">—</pre>
+        <pre class="status" id="live-status">Loading…</pre>
       </div>
       <div class="card">
         <div class="card-head">
@@ -393,8 +401,8 @@ pre.status{
   </form>
 
   <div class="foot">VaultBackup Agent · backups stay on your storage</div>
-  <div id="toast" class="toast hidden"></div>
 </div>
+<div id="toast" class="toast hidden"></div>
 <script>
 __APP_JS__
 </script>
