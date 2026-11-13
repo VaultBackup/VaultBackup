@@ -28,7 +28,7 @@ type DestResult struct {
 }
 
 // ProbeDestination checks that the configured destination is reachable/writable
-// without uploading a real backup file.
+// without uploading a real backup file. Data-plane only — never the Worker.
 func ProbeDestination(d config.Destination) DestResult {
 	start := time.Now()
 	mode := strings.ToLower(strings.TrimSpace(d.Mode))
@@ -48,7 +48,7 @@ func ProbeDestination(d config.Destination) DestResult {
 	case "sftp":
 		res = probeSFTP(d)
 	case "vaultbackup", "managed", "platform":
-		res = probeVaultbackup()
+		res = DestResult{OK: false, Status: "Failed", Detail: "managed control-plane upload is disabled; choose local, s3, azure, webdav, or sftp (agent writes directly to storage; Worker is license-only)"}
 	default:
 		res = DestResult{OK: false, Status: "Failed", Detail: "unknown destination mode: " + mode}
 	}
@@ -67,7 +67,6 @@ func probeLocal(dir string) DestResult {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return DestResult{OK: false, Status: "Unreachable", Detail: "cannot create directory: " + err.Error()}
 	}
-	// Write a tiny probe file then remove it.
 	name := path.Join(dir, ".vaultbackup-probe-"+fmt.Sprintf("%d", time.Now().UnixNano()))
 	if err := os.WriteFile(name, []byte("ok"), 0o600); err != nil {
 		return DestResult{OK: false, Status: "Unreachable", Detail: "directory not writable: " + err.Error()}
@@ -90,7 +89,6 @@ func probeS3(d config.Destination) DestResult {
 	} else {
 		listURL = fmt.Sprintf("%s/?list-type=2&max-keys=1", base)
 	}
-	// Prefer listing under prefix when set.
 	if p := strings.Trim(d.S3Prefix, "/"); p != "" {
 		if pathStyle {
 			listURL = fmt.Sprintf("%s?list-type=2&max-keys=1&prefix=%s/", base, p)
@@ -133,7 +131,6 @@ func probeAzure(d config.Destination) DestResult {
 		endpoint = fmt.Sprintf("https://%s.blob.core.windows.net", d.AzureAccount)
 	}
 	endpoint = strings.TrimRight(endpoint, "/")
-	// List blobs with maxresults=1
 	listURL := fmt.Sprintf("%s/%s?restype=container&comp=list&maxresults=1", endpoint, d.AzureContainer)
 	start := time.Now()
 	req, err := http.NewRequest(http.MethodGet, listURL, nil)
@@ -171,9 +168,9 @@ func signAzureList(req *http.Request, account, accountKey, container string) err
 	canonicalResource := fmt.Sprintf("/%s/%s\ncomp:list\nmaxresults:1\nrestype:container", account, container)
 	stringToSign := strings.Join([]string{
 		"GET",
-		"", "", "", "", "", // Content-* empty for GET
-		"", // Date empty (x-ms-date used)
-		"", "", "", "", "", // If-* / Range
+		"", "", "", "", "",
+		"",
+		"", "", "", "", "",
 		canonicalHeaders,
 		canonicalResource,
 	}, "\n")
@@ -265,46 +262,4 @@ func probeSFTP(d config.Destination) DestResult {
 		detail += " (probe used temporary host-key skip; set sftp_insecure=true for production if needed)"
 	}
 	return DestResult{OK: true, Status: "OK", LatencyMs: lat, Detail: detail}
-}
-
-// probeVaultbackup checks the license/control plane is reachable for managed uploads.
-func probeVaultbackup() DestResult {
-	base := strings.TrimRight(licenseServerURL(), "/")
-	if base == "" {
-		return DestResult{OK: false, Status: "Failed", Detail: "license server URL not configured"}
-	}
-	// Public health endpoint — no auth required.
-	url := base + "/api/health"
-	start := time.Now()
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return DestResult{OK: false, Status: "Failed", Detail: err.Error()}
-	}
-	resp, err := httpx.UploadClient.Do(req)
-	lat := time.Since(start).Milliseconds()
-	if err != nil {
-		return DestResult{OK: false, Status: "Unreachable", LatencyMs: lat, Detail: err.Error()}
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 2048))
-	if resp.StatusCode >= 300 {
-		return DestResult{OK: false, Status: "Unreachable", LatencyMs: lat,
-			Detail: fmt.Sprintf("control plane HTTP %d", resp.StatusCode)}
-	}
-	return DestResult{OK: true, Status: "OK", LatencyMs: lat, Detail: "control plane reachable (managed upload)"}
-}
-
-// licenseServerURL is provided by the license package via a thin indirection to avoid import cycles in tests.
-var licenseServerURL = func() string {
-	return defaultLicenseServerURL()
-}
-
-func defaultLicenseServerURL() string {
-	if v := strings.TrimSpace(os.Getenv("VAULTBACKUP_LICENSE_URL")); v != "" {
-		return v
-	}
-	if v := strings.TrimSpace(os.Getenv("VAULTBACKUP_SERVER")); v != "" {
-		return v
-	}
-	return "https://backup.enadoctemp.workers.dev"
 }
