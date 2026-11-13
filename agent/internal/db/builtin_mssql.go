@@ -13,7 +13,8 @@ import (
 )
 
 // dumpMSSQLBuiltin logical table dump via TDS driver (no sqlcmd).
-func dumpMSSQLBuiltin(workDir, name, uri string) (string, error) {
+// When schemaOnly is true, emits CREATE TABLE DDL without row data.
+func dumpMSSQLBuiltin(workDir, name, uri string, schemaOnly bool) (string, error) {
 	dsn, err := mssqlDSN(uri)
 	if err != nil {
 		return "", err
@@ -42,6 +43,9 @@ func dumpMSSQLBuiltin(workDir, name, uri string) (string, error) {
 		return err
 	}
 	_ = write("-- VaultBackup built-in SQL Server dump\n")
+	if schemaOnly {
+		_ = write("-- mode: schema-only\n")
+	}
 	_ = write(fmt.Sprintf("-- generated: %s\n\n", time.Now().UTC().Format(time.RFC3339)))
 
 	rows, err := sqldb.Query(`
@@ -66,7 +70,6 @@ func dumpMSSQLBuiltin(workDir, name, uri string) (string, error) {
 
 	for _, t := range tables {
 		full := quoteMSSQL(t.schema) + "." + quoteMSSQL(t.name)
-		_ = write(fmt.Sprintf("-- data for %s\n", full))
 		colRows, err := sqldb.Query(`
 			SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
 			WHERE TABLE_SCHEMA = @p1 AND TABLE_NAME = @p2
@@ -90,6 +93,37 @@ func dumpMSSQLBuiltin(workDir, name, uri string) (string, error) {
 		qcols := make([]string, len(cols))
 		for i, c := range cols {
 			qcols[i] = quoteMSSQL(c)
+		}
+		if schemaOnly {
+			typeRows, err := sqldb.Query(`
+				SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
+				FROM INFORMATION_SCHEMA.COLUMNS
+				WHERE TABLE_SCHEMA = @p1 AND TABLE_NAME = @p2
+				ORDER BY ORDINAL_POSITION`, t.schema, t.name)
+			if err == nil {
+				var parts []string
+				for typeRows.Next() {
+					var cn, dt, nullable string
+					var maxlen sql.NullInt64
+					if err := typeRows.Scan(&cn, &dt, &maxlen, &nullable); err != nil {
+						break
+					}
+					part := quoteMSSQL(cn) + " " + dt
+					if maxlen.Valid && maxlen.Int64 > 0 && dt != "text" && dt != "ntext" {
+						part += fmt.Sprintf("(%d)", maxlen.Int64)
+					}
+					if nullable == "NO" {
+						part += " NOT NULL"
+					}
+					parts = append(parts, part)
+				}
+				typeRows.Close()
+				if len(parts) > 0 {
+					_ = write(fmt.Sprintf("IF OBJECT_ID(N'%s', N'U') IS NOT NULL DROP TABLE %s;\n", full, full))
+					_ = write(fmt.Sprintf("CREATE TABLE %s (\n  %s\n);\n\n", full, strings.Join(parts, ",\n  ")))
+				}
+			}
+			continue
 		}
 		q := "SELECT " + strings.Join(qcols, ",") + " FROM " + full
 		data, err := sqldb.Query(q)
@@ -158,7 +192,6 @@ func mssqlLiteral(v any) string {
 	}
 }
 
-// mssqlDSN accepts sqlserver://, mssql://, or ADO-style key=value;server=...
 func mssqlDSN(uri string) (string, error) {
 	u := strings.TrimSpace(uri)
 	if u == "" {
