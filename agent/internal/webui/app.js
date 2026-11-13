@@ -11,6 +11,7 @@
 
   var probeState = { db: false, dest: false };
   var termsVersion = "";
+  var termsAlreadyAccepted = false;
 
   function toast(msg, ok) {
     var t = $("toast");
@@ -41,7 +42,7 @@
   });
 
   $("next-1").addEventListener("click", function () {
-    if (!$("terms_accept").checked) {
+    if (!termsAlreadyAccepted && !$("terms_accept").checked) {
       toast("Please accept the EULA to continue", false);
       return;
     }
@@ -213,7 +214,7 @@
 
   function bodyFromForm() {
     return {
-      terms_accepted: !!$("terms_accept").checked,
+      terms_accepted: termsAlreadyAccepted || !!$("terms_accept").checked,
       terms_version: termsVersion,
       name: $("name").value.trim(),
       schedule: $("schedule").value.trim() || "0 3 * * *",
@@ -263,7 +264,7 @@
   }
 
   $("btn-save").addEventListener("click", function () {
-    if (!$("terms_accept").checked) {
+    if (!termsAlreadyAccepted && !$("terms_accept").checked) {
       toast("Accept the EULA on step 1 before saving", false);
       setStep(1);
       return;
@@ -337,10 +338,42 @@
     }).catch(function () {});
   }
 
+  function applyTermsUI(accepted) {
+    termsAlreadyAccepted = !!accepted;
+    var box = $("terms-text");
+    var accept = $("terms_accept");
+    var note = $("terms-note");
+    var wrap = $("terms-accept-wrap");
+    if (termsAlreadyAccepted) {
+      if (accept) {
+        accept.checked = true;
+        accept.disabled = true;
+      }
+      if (wrap) wrap.classList.add("hidden");
+      if (note) {
+        note.classList.remove("hidden");
+        note.textContent = "EULA already accepted on this agent (version " + (termsVersion || "current") + "). You only need to accept again if the agreement is updated.";
+      }
+      if (box) box.classList.add("collapsed");
+    } else {
+      if (accept) {
+        accept.checked = false;
+        accept.disabled = false;
+      }
+      if (wrap) wrap.classList.remove("hidden");
+      if (note) {
+        note.classList.add("hidden");
+        note.textContent = "";
+      }
+      if (box) box.classList.remove("collapsed");
+    }
+  }
+
   function loadTerms() {
     return api("/api/terms").then(function (j) {
       termsVersion = j.version || "";
       $("terms-text").textContent = j.text || "EULA unavailable.";
+      applyTermsUI(!!j.accepted);
     }).catch(function () {
       $("terms-text").textContent = "Could not load EULA. Please restart the agent and try again.";
     });
@@ -369,7 +402,11 @@
       if (c.destination.s3_access_key) $("s3_access_key").value = c.destination.s3_access_key;
     }
     if (c.security && typeof c.security.encrypt === "boolean") $("encrypt").checked = c.security.encrypt;
-    if (c.terms_accepted) $("terms_accept").checked = true;
+    if (c.terms_accepted && c.terms_version && c.terms_version === termsVersion) {
+      applyTermsUI(true);
+    } else if (c.terms_accepted && !termsVersion) {
+      $("terms_accept").checked = true;
+    }
     toggleDest();
   }).catch(function () {});
 
