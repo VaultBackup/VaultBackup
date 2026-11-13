@@ -1,5 +1,9 @@
 package upload
 
+// Package upload writes backup files directly to customer-owned storage
+// (local disk, S3-compatible, Azure, WebDAV, SFTP). The control-plane Worker
+// is never used as a data plane — only license checks use the Worker.
+
 import (
 	"fmt"
 	"io"
@@ -10,7 +14,8 @@ import (
 	"github.com/vaultbackup/agent/internal/config"
 )
 
-// Put uploads localPath according to destination settings. Returns remote key/path.
+// Put writes localPath to the configured destination. Returns remote key/path.
+// Data never passes through the control-plane Worker.
 func Put(cfg config.Config, localPath string) (string, error) {
 	dest := cfg.Destination
 	switch strings.ToLower(dest.Mode) {
@@ -24,10 +29,11 @@ func Put(cfg config.Config, localPath string) (string, error) {
 		return putWebDAV(dest, localPath)
 	case "sftp":
 		return putSFTP(dest, localPath)
-	case "vaultbackup":
-		return putVault(cfg, localPath)
+	case "vaultbackup", "managed", "platform":
+		// Backups must go directly to customer storage. Worker is license-only.
+		return "", fmt.Errorf("managed upload through the control plane is disabled: set destination to local, s3, azure, webdav, or sftp so the agent writes the backup file directly to your storage (Worker is used only for license checks)")
 	default:
-		return "", fmt.Errorf("unknown destination mode %q", dest.Mode)
+		return "", fmt.Errorf("unknown destination mode %q (use local, s3, azure, webdav, or sftp)", dest.Mode)
 	}
 }
 
