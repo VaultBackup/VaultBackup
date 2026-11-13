@@ -131,7 +131,7 @@ func Default() Config {
 		Retention:   14,
 		License:     License{ServerURL: "https://backup.enadoctemp.workers.dev", CheckEveryHours: 6},
 		Security:    Security{Encrypt: true, KeyFile: "./data/agent.key"},
-		Database:    Database{Type: "postgres", BackupType: "full", PreferNativeTools: true},
+		Database:    Database{Type: "postgres", BackupType: "full", PreferNativeTools: false},
 		Destination: Destination{Mode: "s3"},
 	}
 }
@@ -405,7 +405,6 @@ func maskLeft(s string) string {
 }
 
 func normalize(c *Config) {
-	// License server is fixed in the binary; ignore any value from disk/UI/API.
 	c.License.ServerURL = "https://backup.enadoctemp.workers.dev"
 	if c.Schedule == "" {
 		c.Schedule = "0 3 * * *"
