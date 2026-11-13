@@ -12,7 +12,9 @@ import (
 )
 
 // dumpMySQLBuiltin produces a logical SQL dump using pure Go (no mysqldump).
-func dumpMySQLBuiltin(workDir, name, uri string) (string, error) {
+// Covers tables (CREATE + INSERT). Views/routines/triggers are best-effort.
+// When schemaOnly is true, emits DDL only (no row data).
+func dumpMySQLBuiltin(workDir, name, uri string, schemaOnly bool) (string, error) {
 	host, port, user, pass, dbname, err := parseMySQLURI(uri)
 	if err != nil {
 		return "", err
@@ -28,6 +30,7 @@ func dumpMySQLBuiltin(workDir, name, uri string) (string, error) {
 	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&timeout=15s&readTimeout=300s&writeTimeout=60s",
 		user, pass, host, port, dbname)
+
 	sqldb, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return "", fmt.Errorf("mysql open: %w", err)
@@ -35,9 +38,11 @@ func dumpMySQLBuiltin(workDir, name, uri string) (string, error) {
 	defer sqldb.Close()
 	sqldb.SetMaxOpenConns(2)
 	sqldb.SetConnMaxLifetime(time.Minute)
+
 	if err := sqldb.Ping(); err != nil {
 		return "", fmt.Errorf("mysql ping: %w", err)
 	}
+
 	out := outPath(workDir, name, ".sql.gz")
 	f, err := os.Create(out)
 	if err != nil {
@@ -46,14 +51,20 @@ func dumpMySQLBuiltin(workDir, name, uri string) (string, error) {
 	defer f.Close()
 	gz := gzip.NewWriter(f)
 	defer gz.Close()
+
 	write := func(s string) error {
 		_, err := gz.Write([]byte(s))
 		return err
 	}
+
 	_ = write("-- VaultBackup built-in MySQL dump\n")
+	if schemaOnly {
+		_ = write("-- mode: schema-only\n")
+	}
 	_ = write(fmt.Sprintf("-- database: %s\n", dbname))
 	_ = write(fmt.Sprintf("-- generated: %s\n\n", time.Now().UTC().Format(time.RFC3339)))
 	_ = write("SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\nSET UNIQUE_CHECKS=0;\n\n")
+
 	rows, err := sqldb.Query(`SELECT TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES
 		WHERE TABLE_SCHEMA = ? ORDER BY TABLE_TYPE, TABLE_NAME`, dbname)
 	if err != nil {
@@ -73,6 +84,7 @@ func dumpMySQLBuiltin(workDir, name, uri string) (string, error) {
 	if err := rows.Err(); err != nil {
 		return "", err
 	}
+
 	for _, t := range tables {
 		ident := quoteMyIdent(t.name)
 		if t.typ == "VIEW" {
@@ -85,11 +97,16 @@ func dumpMySQLBuiltin(workDir, name, uri string) (string, error) {
 			_ = write(fmt.Sprintf("DROP VIEW IF EXISTS %s;\n%s;\n\n", ident, create))
 			continue
 		}
+
 		var tblName, create string
 		if err := sqldb.QueryRow("SHOW CREATE TABLE "+ident).Scan(&tblName, &create); err != nil {
 			return "", fmt.Errorf("show create %s: %w", t.name, err)
 		}
 		_ = write(fmt.Sprintf("DROP TABLE IF EXISTS %s;\n%s;\n\n", ident, create))
+		if schemaOnly {
+			continue
+		}
+
 		data, err := sqldb.Query("SELECT * FROM " + ident)
 		if err != nil {
 			return "", fmt.Errorf("select %s: %w", t.name, err)
@@ -162,6 +179,7 @@ func dumpMySQLBuiltin(workDir, name, uri string) (string, error) {
 			_ = write("\n")
 		}
 	}
+
 	_ = write("SET FOREIGN_KEY_CHECKS=1;\nSET UNIQUE_CHECKS=1;\n")
 	if err := gz.Close(); err != nil {
 		return "", err
@@ -199,11 +217,11 @@ func sqlLiteral(v any) string {
 }
 
 func quoteMyString(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `'`, `\'`)
-	s = strings.ReplaceAll(s, "\x00", `\0`)
-	s = strings.ReplaceAll(s, "\n", `\n`)
-	s = strings.ReplaceAll(s, "\r", `\r`)
-	s = strings.ReplaceAll(s, "\x1a", `\Z`)
+	s = strings.ReplaceAll(s, `\\`, `\\\\`)
+	s = strings.ReplaceAll(s, `'`, `\\'`)
+	s = strings.ReplaceAll(s, "\\x00", `\\0`)
+	s = strings.ReplaceAll(s, "\n", `\\n`)
+	s = strings.ReplaceAll(s, "\r", `\\r`)
+	s = strings.ReplaceAll(s, "\\x1a", `\\Z`)
 	return "'" + s + "'"
 }

@@ -13,7 +13,8 @@ import (
 )
 
 // dumpPostgresBuiltin logical dump via pure Go (no pg_dump).
-func dumpPostgresBuiltin(workDir, name, uri string) (string, error) {
+// When schemaOnly is true, emits CREATE TABLE DDL without row data.
+func dumpPostgresBuiltin(workDir, name, uri string, schemaOnly bool) (string, error) {
 	dsn := uri
 	if !strings.Contains(dsn, "://") && !strings.Contains(dsn, "=") {
 		return "", fmt.Errorf("postgres: invalid URI")
@@ -28,6 +29,7 @@ func dumpPostgresBuiltin(workDir, name, uri string) (string, error) {
 			dsn = u.String()
 		}
 	}
+
 	sqldb, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return "", fmt.Errorf("postgres open: %w", err)
@@ -37,6 +39,7 @@ func dumpPostgresBuiltin(workDir, name, uri string) (string, error) {
 	if err := sqldb.Ping(); err != nil {
 		return "", fmt.Errorf("postgres ping: %w", err)
 	}
+
 	out := outPath(workDir, name, ".sql.gz")
 	f, err := os.Create(out)
 	if err != nil {
@@ -49,9 +52,14 @@ func dumpPostgresBuiltin(workDir, name, uri string) (string, error) {
 		_, err := gz.Write([]byte(s))
 		return err
 	}
+
 	_ = write("-- VaultBackup built-in PostgreSQL dump\n")
+	if schemaOnly {
+		_ = write("-- mode: schema-only\n")
+	}
 	_ = write(fmt.Sprintf("-- generated: %s\n\n", time.Now().UTC().Format(time.RFC3339)))
 	_ = write("SET session_replication_role = replica;\n\n")
+
 	rows, err := sqldb.Query(`
 		SELECT n.nspname, c.relname
 		FROM pg_class c
@@ -73,11 +81,15 @@ func dumpPostgresBuiltin(workDir, name, uri string) (string, error) {
 		tables = append(tables, t)
 	}
 	rows.Close()
+
 	for _, t := range tables {
 		full := quotePGIdent(t.schema) + "." + quotePGIdent(t.name)
-		_ = write(fmt.Sprintf("-- data for %s\n", full))
+
 		colRows, err := sqldb.Query(`
-			SELECT a.attname FROM pg_attribute a
+			SELECT a.attname,
+			       pg_catalog.format_type(a.atttypid, a.atttypmod),
+			       a.attnotnull
+			FROM pg_attribute a
 			JOIN pg_class c ON c.oid = a.attrelid
 			JOIN pg_namespace n ON n.oid = c.relnamespace
 			WHERE n.nspname = $1 AND c.relname = $2
@@ -87,18 +99,33 @@ func dumpPostgresBuiltin(workDir, name, uri string) (string, error) {
 			return "", err
 		}
 		var cols []string
+		var ddlParts []string
 		for colRows.Next() {
-			var c string
-			if err := colRows.Scan(&c); err != nil {
+			var cname, ctype string
+			var notnull bool
+			if err := colRows.Scan(&cname, &ctype, &notnull); err != nil {
 				colRows.Close()
 				return "", err
 			}
-			cols = append(cols, c)
+			cols = append(cols, cname)
+			part := quotePGIdent(cname) + " " + ctype
+			if notnull {
+				part += " NOT NULL"
+			}
+			ddlParts = append(ddlParts, part)
 		}
 		colRows.Close()
 		if len(cols) == 0 {
 			continue
 		}
+
+		_ = write(fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;\n", full))
+		_ = write(fmt.Sprintf("CREATE TABLE %s (\n  %s\n);\n\n", full, strings.Join(ddlParts, ",\n  ")))
+
+		if schemaOnly {
+			continue
+		}
+
 		qcols := make([]string, len(cols))
 		for i, c := range cols {
 			qcols[i] = quotePGIdent(c)
@@ -135,6 +162,7 @@ func dumpPostgresBuiltin(workDir, name, uri string) (string, error) {
 		data.Close()
 		_ = write("\n")
 	}
+
 	_ = write("SET session_replication_role = DEFAULT;\n")
 	if err := gz.Close(); err != nil {
 		return "", err
