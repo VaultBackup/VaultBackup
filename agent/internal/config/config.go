@@ -26,6 +26,10 @@ type Config struct {
 	Database        Database        `json:"database"`
 	Destination     Destination     `json:"destination"`
 	Jobs            []Job           `json:"jobs,omitempty"`
+	// TermsAccepted is set after the user accepts the agent EULA (once per agent).
+	TermsAccepted bool `json:"terms_accepted,omitempty"`
+	// TermsVersion is the EULA version string that was accepted.
+	TermsVersion string `json:"terms_version,omitempty"`
 }
 
 type RetentionPolicy struct {
