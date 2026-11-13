@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -24,11 +25,9 @@ import (
 	"github.com/vaultbackup/agent/internal/webui"
 )
 
-var version = "1.2.6"
+var version = "1.2.7"
 
 func main() {
-	// MSI installs the agent as a Windows service. The EXE must speak SCM protocol
-	// or the service fails while the same binary still works when double-clicked.
 	if isWindowsService() {
 		runWindowsService()
 		return
@@ -47,7 +46,7 @@ func runInteractive() error {
 	noWebUI := flag.Bool("no-webui", false, "Disable Web UI")
 	once := flag.Bool("once", false, "Run one backup then exit")
 	backupType := flag.String("type", "", "Override backup type for this run")
-	restore := flag.String("restore", "", "Decrypt encrypted backup file")
+	restore := flag.String("restore", "", "Local path or remote storage key to restore")
 	restoreOut := flag.String("restore-out", "", "Output path for decrypted file")
 	flag.Parse()
 
@@ -92,7 +91,7 @@ func runInteractive() error {
 
 	if *noWebUI || *webuiAddr == "" {
 		log.Printf("Web UI disabled")
-		select {} // block forever (service/daemon)
+		select {}
 	}
 
 	srv := webui.New(*webuiAddr, *webuiPass).WithTLS(*webuiTLSCert, *webuiTLSKey)
@@ -224,16 +223,9 @@ func applyRetention(cfg config.Config) {
 	if err := pol.Apply(cfg.WorkDir); err != nil {
 		log.Printf("retention workdir: %v", err)
 	}
-	if strings.EqualFold(cfg.Destination.Mode, "local") {
-		dir := cfg.Destination.LocalDir
-		if dir == "" {
-			dir = cfg.Destination.LocalPath
-		}
-		if dir != "" {
-			if err := pol.Apply(dir); err != nil {
-				log.Printf("retention local dest: %v", err)
-			}
-		}
+	// Destination retention on every direct storage backend (list + delete oldest).
+	if err := upload.ApplyRetention(cfg, keep); err != nil {
+		log.Printf("retention destination (%s): %v", cfg.Destination.Mode, err)
 	}
 }
 
@@ -337,17 +329,31 @@ func setupLogging(cfg config.Config) {
 	}
 }
 
+// runRestore decrypts a local file, or downloads a remote storage key first then decrypts.
 func runRestore(configPath, src, dst string) {
 	cfg := config.LoadSoft(configPath)
+	localSrc := src
+	if _, err := os.Stat(src); err != nil {
+		tmp := filepath.Join(cfg.WorkDir, "restore-"+filepath.Base(src))
+		if err := os.MkdirAll(cfg.WorkDir, 0o755); err != nil {
+			log.Fatalf("workdir: %v", err)
+		}
+		log.Printf("fetching %s from destination (%s)…", src, cfg.Destination.Mode)
+		if err := upload.Get(cfg, src, tmp); err != nil {
+			log.Fatalf("download: %v", err)
+		}
+		localSrc = tmp
+		defer os.Remove(tmp)
+	}
 	key, err := crypto.LoadKeyProtected(cfg.Security.KeyFile)
 	if err != nil {
 		log.Fatalf("key: %v", err)
 	}
 	if dst == "" {
-		dst = src + ".decrypted"
+		dst = localSrc + ".decrypted"
 	}
-	if err := crypto.DecryptFile(src, dst, key); err != nil {
+	if err := crypto.DecryptFile(localSrc, dst, key); err != nil {
 		log.Fatalf("decrypt: %v", err)
 	}
-	log.Printf("decrypted -> %s", dst)
+	log.Printf("decrypted → %s", dst)
 }
