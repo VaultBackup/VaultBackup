@@ -48,6 +48,20 @@ func ProbeURI(dbType, uri string) DBResult {
 		res = probeRedis(uri)
 	case "mssql":
 		res = probeTCP(uri, 1433)
+	case "oracle":
+		res = probeTCP(uri, 1521)
+	case "as400":
+		lower := strings.ToLower(uri)
+		if strings.HasPrefix(lower, "file:") {
+			path := strings.TrimPrefix(uri, "file:")
+			if _, err := os.Stat(path); err != nil {
+				res = DBResult{Status: "Unreachable", OK: false, Detail: err.Error()}
+			} else {
+				res = DBResult{Status: "OK", OK: true, Detail: "path exists (AS/400 save file or export dir)"}
+			}
+		} else {
+			res = probeTCP(uri, 22)
+		}
 	case "sqlite", "files", "quickbooks", "sage50", "access":
 		p := strings.TrimPrefix(uri, "file:")
 		if _, err := os.Stat(p); err != nil {
@@ -72,10 +86,18 @@ func ProbeURI(dbType, uri string) DBResult {
 	if res.LatencyMs == 0 {
 		res.LatencyMs = time.Since(start).Milliseconds()
 	}
-	// tool discovery
 	tools := discoverTools(t)
 	if len(tools) > 0 {
 		res.Tools = strings.Join(tools, ", ")
+	} else {
+		switch t {
+		case "mysql", "mariadb", "postgres", "cockroach", "sqlite", "mongodb", "redis", "mssql":
+			res.Tools = "builtin"
+		case "oracle":
+			res.Tools = "expdp,exp,rman (host tools)"
+		case "as400":
+			res.Tools = "ssh+sftp or file:.savf"
+		}
 	}
 	return res
 }
@@ -93,7 +115,6 @@ func probeTCP(uri string, defaultPort int) DBResult {
 }
 
 func probeRedis(uri string) DBResult {
-	// Prefer redis-cli PING when available
 	if bin, err := exec.LookPath("redis-cli"); err == nil {
 		args := []string{"PING"}
 		if uri != "" {
@@ -146,7 +167,9 @@ func discoverTools(dbType string) []string {
 	case "sqlite":
 		names = []string{"sqlite3"}
 	case "oracle":
-		names = []string{"expdp", "exp"}
+		names = []string{"expdp", "exp", "rman"}
+	case "as400":
+		names = []string{"ssh"}
 	case "quickbooks", "sage50", "files", "access":
 		names = []string{"tar"}
 	default:
