@@ -29,7 +29,7 @@ jobs:
         working-directory: agent
         run: |
           set -euo pipefail
-          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.6")
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.7")
           LDFLAGS="-s -w -X main.version=${VERSION}"
           GOOS=linux   GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-linux-amd64     ./cmd/agent
           GOOS=linux   GOARCH=arm64 go build -ldflags="$LDFLAGS" -o ../vaultbackup-agent-linux-arm64     ./cmd/agent
@@ -77,18 +77,38 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe SHA256SUMS || true
+          # Stage newly built binaries
+          git add vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 \
+                  vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 \
+                  vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe \
+                  SHA256SUMS || true
           if git diff --cached --quiet; then echo "No binary changes"; exit 0; fi
           git commit -m "chore(build): update agent binaries [skip ci]"
+          # Prefer our new binaries when concurrent pushes race on main
           for i in 1 2 3 4 5 6 8 10; do
             git fetch origin "$BRANCH"
-            if git push origin "HEAD:$BRANCH"; then exit 0; fi
-            git pull --rebase origin "$BRANCH" || git rebase --abort || true
+            if git push origin "HEAD:$BRANCH"; then
+              echo "Pushed binaries"
+              exit 0
+            fi
+            echo "Push rejected (attempt $i); rebasing with ours for binaries…"
+            if ! git pull --rebase origin "$BRANCH"; then
+              # Resolve binary / checksum conflicts by keeping this job's files
+              git checkout --ours -- \
+                vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 \
+                vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 \
+                vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe \
+                SHA256SUMS 2>/dev/null || true
+              git add vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 \
+                      vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 \
+                      vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe \
+                      SHA256SUMS 2>/dev/null || true
+              GIT_EDITOR=true git rebase --continue || git rebase --abort || true
+            fi
             sleep $((i * 2))
           done
           exit 1
 
-  # macOS codesign — skips inside the job when Apple cert secret is absent
   sign-macos:
     needs: build
     runs-on: macos-latest
@@ -189,7 +209,11 @@ jobs:
           for i in 1 2 3 4 5 6 8 10; do
             git fetch origin "$BRANCH"
             if git push origin "HEAD:$BRANCH"; then exit 0; fi
-            git pull --rebase origin "$BRANCH" || git rebase --abort || true
+            if ! git pull --rebase origin "$BRANCH"; then
+              git checkout --ours -- vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 2>/dev/null || true
+              git add vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 2>/dev/null || true
+              GIT_EDITOR=true git rebase --continue || git rebase --abort || true
+            fi
             sleep $((i * 2))
           done
           exit 1
@@ -212,8 +236,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RAW=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.6")
-          if [[ "$RAW" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then VERSION="$RAW"; else VERSION="1.2.6"; fi
+          RAW=$(git describe --tags --always --dirty 2>/dev/null || echo "1.2.7")
+          if [[ "$RAW" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then VERSION="$RAW"; else VERSION="1.2.7"; fi
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           LDFLAGS="-s -w -X main.version=${RAW}"
           GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o packaging/windows/vaultbackup-agent-windows-amd64.exe ./cmd/agent
@@ -241,7 +265,7 @@ jobs:
           $candle = Join-Path $env:WIX_BIN "candle.exe"
           $light  = Join-Path $env:WIX_BIN "light.exe"
           $ver = $env:VERSION
-          if ([string]::IsNullOrWhiteSpace($ver) -or ($ver -notmatch '^\d+(\.\d+){1,3}$')) { $ver = "1.2.6" }
+          if ([string]::IsNullOrWhiteSpace($ver) -or ($ver -notmatch '^\d+(\.\d+){1,3}$')) { $ver = "1.2.7" }
           New-Item -ItemType Directory -Force -Path out | Out-Null
           if (-not (Test-Path "License.rtf")) { throw "License.rtf missing — EULA would be Lorem ipsum" }
           $lic = (Resolve-Path "License.rtf").Path
@@ -270,7 +294,11 @@ jobs:
           for i in 1 2 3 4 5 6 8 10; do
             git fetch origin "$BRANCH"
             if git push origin "HEAD:$BRANCH"; then exit 0; fi
-            git pull --rebase origin "$BRANCH" || git rebase --abort || true
+            if ! git pull --rebase origin "$BRANCH"; then
+              git checkout --ours -- vaultbackup-agent-windows-amd64.msi vaultbackup-agent-*-x64.msi 2>/dev/null || true
+              git add vaultbackup-agent-windows-amd64.msi vaultbackup-agent-*-x64.msi 2>/dev/null || true
+              GIT_EDITOR=true git rebase --continue || git rebase --abort || true
+            fi
             sleep $((i * 2))
           done
           exit 1
