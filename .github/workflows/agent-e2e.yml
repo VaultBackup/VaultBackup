@@ -71,7 +71,6 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/vb-data" "$RUNNER_TEMP/vb-backups" "$RUNNER_TEMP/vb-restore"
-          # Pure Python sqlite3 — works on Linux/macOS/Windows without apt/brew/choco
           python3 - <<'PY'
           import os, sqlite3
           db = os.path.join(os.environ["RUNNER_TEMP"], "sample.db")
@@ -93,14 +92,14 @@ jobs:
           TOKEN: ${{ steps.tok.outputs.token }}
         run: |
           set -euo pipefail
-          python3 - <<PY
+          python3 - <<'PY'
           import json, os
           rt = os.environ["RUNNER_TEMP"]
-          # Normalize to forward slashes for Go path handling on Windows
+          slash = chr(92)  # backslash, portable in YAML
           def p(*parts):
-              return os.path.abspath(os.path.join(*parts)).replace("\\", "/")
+              return os.path.abspath(os.path.join(*parts)).replace(slash, "/")
           cfg = {
-            "name": f"e2e-{os.environ.get('RUNNER_OS', 'runner').lower()}",
+            "name": "e2e-%s" % os.environ.get("RUNNER_OS", "runner").lower(),
             "schedule": "0 3 * * *",
             "work_dir": p(rt, "vb-data"),
             "log_file": p(rt, "vb-data", "agent.log"),
@@ -154,7 +153,6 @@ jobs:
           done
           kill "$PID" 2>/dev/null || true
           wait "$PID" 2>/dev/null || true
-          # Windows may need taskkill if bash kill fails
           if [ "${{ runner.os }}" = "Windows" ]; then
             taskkill //PID "$PID" //F 2>/dev/null || true
           fi
