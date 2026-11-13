@@ -70,7 +70,7 @@
 
   function toggleDest() {
     var m = $("dest_mode").value;
-    ["local", "s3", "azure", "webdav", "sftp"].forEach(function (k) {
+    ["local", "s3", "azure", "webdav", "sftp", "vaultbackup"].forEach(function (k) {
       var el = $("dest-" + k);
       if (el) el.classList.toggle("hidden", m !== k);
     });
