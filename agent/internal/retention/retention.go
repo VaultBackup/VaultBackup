@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -16,7 +17,25 @@ type Policy struct {
 	Keep    int
 }
 
-// Apply removes old files in dir according to the policy (or Keep N).
+// isBackupArtifact returns true for agent backup payloads only (not keys/logs/config).
+func isBackupArtifact(name string) bool {
+	base := strings.ToLower(filepath.Base(name))
+	switch base {
+	case "agent.key", "agent.log", "history.json", "config.yaml", "config.json":
+		return false
+	}
+	if strings.HasPrefix(base, "backup-") {
+		return true
+	}
+	for _, suf := range []string{".sql", ".sql.gz", ".dump", ".archive", ".vbenc", ".gz", ".zip", ".bak", ".db.gz"} {
+		if strings.HasSuffix(base, suf) {
+			return true
+		}
+	}
+	return false
+}
+
+// Apply removes old backup artifacts in dir according to the policy (or Keep N).
 func (p Policy) Apply(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -29,6 +48,9 @@ func (p Policy) Apply(dir string) error {
 	var files []item
 	for _, e := range entries {
 		if e.IsDir() {
+			continue
+		}
+		if !isBackupArtifact(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
