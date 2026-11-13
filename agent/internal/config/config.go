@@ -67,13 +67,14 @@ type Database struct {
 type Destination struct {
 	Mode string `json:"mode"`
 
-	S3Endpoint  string `json:"s3_endpoint"`
-	S3Region    string `json:"s3_region"`
-	S3Bucket    string `json:"s3_bucket"`
-	S3Prefix    string `json:"s3_prefix"`
-	S3AccessKey string `json:"s3_access_key"`
-	S3SecretKey string `json:"s3_secret_key"`
-	S3SecretSet bool   `json:"s3_secret_set,omitempty"`
+	S3Endpoint       string `json:"s3_endpoint"`
+	S3Region         string `json:"s3_region"`
+	S3Bucket         string `json:"s3_bucket"`
+	S3Prefix         string `json:"s3_prefix"`
+	S3AccessKey      string `json:"s3_access_key"`
+	S3SecretKey      string `json:"s3_secret_key"`
+	S3SecretSet      bool   `json:"s3_secret_set,omitempty"`
+	S3ForcePathStyle bool   `json:"s3_force_path_style,omitempty"`
 
 	LocalDir  string `json:"local_dir"`
 	LocalPath string `json:"local_path"`
@@ -132,7 +133,7 @@ func Default() Config {
 		License:     License{ServerURL: "https://backup.enadoctemp.workers.dev", CheckEveryHours: 6},
 		Security:    Security{Encrypt: true, KeyFile: "./data/agent.key"},
 		Database:    Database{Type: "postgres", BackupType: "full", PreferNativeTools: false},
-		Destination: Destination{Mode: "s3"},
+		Destination: Destination{Mode: "local"},
 	}
 }
 
@@ -365,10 +366,10 @@ func Complete(c Config) bool {
 		return c.Destination.WebDAVURL != ""
 	case "sftp":
 		return c.Destination.SFTPHost != "" && c.Destination.SFTPUser != ""
-	case "vaultbackup":
-		return true
+	case "vaultbackup", "managed", "platform":
+		return false // data plane must be direct storage
 	default:
-		return c.Destination.Mode != ""
+		return false
 	}
 }
 
@@ -422,10 +423,12 @@ func normalize(c *Config) {
 		c.Database.BackupType = "full"
 	}
 	switch c.Destination.Mode {
-	case "r2", "b2", "minio", "wasabi":
+	case "r2", "b2", "minio", "wasabi", "gcs":
 		c.Destination.Mode = "s3"
 	case "azureblob":
 		c.Destination.Mode = "azure"
+	case "vaultbackup", "managed", "platform":
+		c.Destination.Mode = "local"
 	}
 	if c.Destination.LocalDir == "" && c.Destination.LocalPath != "" {
 		c.Destination.LocalDir = c.Destination.LocalPath
