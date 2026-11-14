@@ -6,7 +6,7 @@ The agent runs **on the machine that can see the database** (office PC, server, 
 
 ## Install
 
-See [INSTALL.md](../INSTALL.md). Preferred Windows path: **MSI**.
+See [INSTALL.md](../INSTALL.md). Preferred Windows path: **MSI** (elevated). Support FAQ: [SUPPORT.md](SUPPORT.md).
 
 | Platform | Download |
 |----------|----------|
@@ -21,32 +21,36 @@ Base URL: https://backup.enadoctemp.workers.dev
 
 1. Console → **Desktop Agents** → **Create token** (copy once)  
 2. Open agent UI: http://127.0.0.1:8787  
-3. Paste token (server URL is built-in)  
-4. Database type + connection  
-5. Destination (local or S3-compatible)  
-6. **Save** → **Test license** → **Run backup now**  
+3. **Welcome** — name, schedule, paste token, accept **EULA** (first time only)  
+4. **Database** — type + URI → **Test connection** (required)  
+5. **Destination** — local / S3 / Azure / WebDAV / SFTP → **Test connection** (required)  
+6. **Review** — both tests green → **Save** → **Check license** → **Run backup once**  
+7. Confirm object under **Stored backups**
 
 ## Config & secrets
 
-- Default config path: `config.yaml` (JSON envelope on disk after save)  
+- Default config path: `config.yaml` (sealed JSON envelope on disk after save)  
 - Secrets are **sealed at rest** (see [SECURITY.md](SECURITY.md))  
-- Key file: `./data/agent.key` (or `security.key_file`)  
+- Key file: under `work_dir` (or `security.key_file`) — often `agent.key`  
 - UI never echoes raw secrets; blank password/token on save keeps existing values  
+- Retention policies do **not** delete `agent.key`, logs, or history  
 
-## Web UI
+## Web UI features
 
-- Guided setup (token → database → destination → review)  
-- Status, history, run-once  
-- Flags: `--webui`, `--webui-password`, `--no-webui` (see [RUN.md](../RUN.md))  
+- Guided setup with mandatory DB + destination probes  
+- Live status, rich history  
+- **Stored backups:** list destination objects, restore (decrypt), delete  
+- Flags: `-webui`, `-webui-password`, `-no-webui` (see [RUN.md](../RUN.md))  
 
 ## License
 
 - Server hardcoded: `https://backup.enadoctemp.workers.dev`  
 - **72-hour** offline grace after a successful check-in  
-- New hardware / major reinstall → new agent token  
+- One token ↔ one device fingerprint; unbind in console to move  
+- New hardware / major reinstall → new agent token or unbind  
 
 ## Service mode
 
-Production should run as a service / scheduled task so backups continue without a logged-in user. Scripts: `scripts/install-*.sh` / `install-windows.ps1`. MSI registers Windows integration at install.
+Production should run as a service / scheduled task so backups continue without a logged-in user. Scripts: `scripts/install-*.sh` / `install-windows.ps1`. MSI registers Windows service at install. Linux optional `.deb`: `agent/packaging/linux/build-deb.sh`.
 
-See also: [STORAGE.md](STORAGE.md) · [CAPABILITIES.md](../CAPABILITIES.md)
+See also: [STORAGE.md](STORAGE.md) · [CAPABILITIES.md](../CAPABILITIES.md) · [SUPPORT.md](SUPPORT.md)
