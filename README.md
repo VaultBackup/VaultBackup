@@ -3,7 +3,8 @@
 Inexpensive encrypted **database backups** for SMBs and accounting firms — to **your own** storage (S3, Backblaze B2, Wasabi, Cloudflare R2, Azure, WebDAV, local disk) plus a **desktop agent** for private office databases.
 
 **Live console & downloads:** [https://backup.enadoctemp.workers.dev/](https://backup.enadoctemp.workers.dev/)  
-**Install guide:** [https://backup.enadoctemp.workers.dev/install](https://backup.enadoctemp.workers.dev/install)
+**Install guide:** [https://backup.enadoctemp.workers.dev/install](https://backup.enadoctemp.workers.dev/install)  
+**User support / FAQ:** [docs/SUPPORT.md](docs/SUPPORT.md)
 
 > This repository is **private**. End users download agent binaries from the public Worker, not from GitHub.
 
@@ -17,7 +18,7 @@ Inexpensive encrypted **database backups** for SMBs and accounting firms — to 
 | `agent/` | Go desktop agent source |
 | `vaultbackup-agent-*` | CI-built binaries (all platforms + MSI) |
 | `.github/workflows/build-agents.yml` | Multi-platform + MSI build |
-| `docs/` | Product, security, storage, agent guides |
+| `docs/` | Product, security, storage, agent, **support** guides |
 | `INSTALL.md` / `RUN.md` / `CAPABILITIES.md` | End-user and operator docs |
 | `MINDMAP.md` | Architecture mindmap index |
 
@@ -42,9 +43,11 @@ Inexpensive encrypted **database backups** for SMBs and accounting firms — to 
 1. Sign in at https://backup.enadoctemp.workers.dev/
 2. **Desktop Agents** → **Create token** (copy once)
 3. Download from https://backup.enadoctemp.workers.dev/install
-4. Open agent UI `http://127.0.0.1:8787` → paste token → database + storage → Save → test backup
+4. Open agent UI `http://127.0.0.1:8787`
+5. Welcome (token + EULA) → **Test** database → **Test** destination → Save → license → run backup
+6. Use **Stored backups** to restore or delete objects on your storage
 
-License server is built into the agent. Config **secrets are sealed at rest** (see [docs/SECURITY.md](docs/SECURITY.md)).
+License server is built into the agent. Config **secrets are sealed at rest** (see [docs/SECURITY.md](docs/SECURITY.md)). Backup bytes go **directly** to your storage.
 
 ---
 
@@ -53,6 +56,7 @@ License server is built into the agent. Config **secrets are sealed at rest** (s
 | Doc | Content |
 |-----|---------|
 | [docs/README.md](docs/README.md) | **Docs index** |
+| [docs/SUPPORT.md](docs/SUPPORT.md) | **User support & troubleshooting** |
 | [docs/PRODUCT.md](docs/PRODUCT.md) | Product positioning |
 | [INSTALL.md](INSTALL.md) | Install all platforms |
 | [RUN.md](RUN.md) | Flags, services, offline license |
@@ -78,7 +82,7 @@ Requires KV (`backup_kv`), `ENCRYPTION_KEY`, optional R2, cron every 5 minutes. 
 
 ```bash
 cd agent
-go build -ldflags="-s -w -X main.version=1.2.3" -o vaultbackup-agent ./cmd/agent
+go build -ldflags="-s -w -X main.version=1.2.8" -o vaultbackup-agent ./cmd/agent
 go test ./internal/config/   # sealed-config tests
 ```
 
@@ -93,5 +97,6 @@ CI builds Linux / macOS / Windows EXEs and Windows MSI on changes under `agent/*
 - Agent config secrets: AES-256-GCM sealed envelope (not plaintext JSON)  
 - Optional backup-file encryption  
 - Agent Web UI CSP + sanitized API responses  
+- Direct-to-storage uploads (Worker = license only)  
 
 Details: [docs/SECURITY.md](docs/SECURITY.md)
