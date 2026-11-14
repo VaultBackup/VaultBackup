@@ -13,6 +13,14 @@ chmod +x vaultbackup-agent-linux-amd64.bin
 sudo bash install-service.sh ./vaultbackup-agent-linux-amd64.bin
 ```
 
+## .deb package
+
+```bash
+./build-deb.sh /path/to/vaultbackup-agent-linux-amd64 1.2.8 amd64
+sudo dpkg -i vaultbackup-agent_1.2.8_amd64.deb
+sudo systemctl enable --now vaultbackup-agent
+```
+
 ## Service name
 
 ```text
