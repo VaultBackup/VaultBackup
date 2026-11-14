@@ -70,7 +70,7 @@
 
   function toggleDest() {
     var m = $("dest_mode").value;
-    ["local", "s3", "azure", "webdav", "sftp", "vaultbackup"].forEach(function (k) {
+    ["local", "s3", "azure", "webdav", "sftp"].forEach(function (k) {
       var el = $("dest-" + k);
       if (el) el.classList.toggle("hidden", m !== k);
     });
@@ -88,7 +88,7 @@
     box.classList.remove("ok", "bad", "busy");
     if (probeState.db && probeState.dest) {
       box.classList.add("ok");
-      el.textContent = "Both checks passed — you’re ready to save.";
+      el.textContent = "Both checks passed — you're ready to save.";
     } else {
       box.classList.add("bad");
       var missing = [];
@@ -129,7 +129,7 @@
       return;
     }
     if (btn) btn.disabled = true;
-    setProbe("busy", "Checking database…");
+    setProbe("busy", "Checking database...");
     api("/api/test-db", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -177,7 +177,7 @@
       sftp_path: $("sftp_path").value.trim()
     };
     if (btn) btn.disabled = true;
-    setDestProbe("busy", "Checking destination…");
+    setDestProbe("busy", "Checking destination...");
     api("/api/test-dest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -303,6 +303,7 @@
     api("/api/run-once", { method: "POST" }).then(function () {
       toast("Backup started", true);
       setTimeout(refreshHistory, 1500);
+      setTimeout(refreshStorage, 2000);
     }).catch(function (e) { toast(String(e.message || e), false); });
   });
 
@@ -328,7 +329,7 @@
     return api("/api/history").then(function (j) {
       var list = j.history || [];
       if (!list.length) {
-        $("history").innerHTML = '<div class="hist-empty">No backup attempts yet. Run one when you’re ready.</div>';
+        $("history").innerHTML = '<div class="hist-empty">No backup attempts yet. Run one when you are ready.</div>';
         return;
       }
       $("history").innerHTML = list.map(function (e) {
@@ -337,6 +338,87 @@
       }).join("");
     }).catch(function () {});
   }
+
+  function fmtBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1048576).toFixed(2) + " MB";
+  }
+
+  function refreshStorage() {
+    var box = $("storage-list");
+    var modeEl = $("storage-mode");
+    if (!box) return Promise.resolve();
+    return api("/api/backups").then(function (j) {
+      if (modeEl) modeEl.textContent = "Destination: " + (j.mode || "—");
+      var objs = j.objects || [];
+      if (!objs.length) {
+        box.className = "hist-empty";
+        box.textContent = "No backup objects found on this destination.";
+        return;
+      }
+      box.className = "";
+      box.innerHTML = "";
+      objs.forEach(function (o) {
+        var row = document.createElement("div");
+        row.className = "stor-row";
+        var meta = document.createElement("div");
+        meta.className = "stor-meta";
+        var when = o.modTime || o.mod_time || o.ModTime || "";
+        meta.textContent = (o.key || o.Key || "") + " · " + fmtBytes(o.size || o.Size || 0) + (when ? " · " + when : "");
+        var actions = document.createElement("div");
+        actions.className = "stor-actions";
+        var bRest = document.createElement("button");
+        bRest.type = "button";
+        bRest.className = "btn btn-ghost";
+        bRest.textContent = "Restore";
+        bRest.addEventListener("click", function () {
+          var key = o.key || o.Key;
+          bRest.disabled = true;
+          api("/api/backups/get", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: key, decrypt: true })
+          }).then(function (r) {
+            toast("Restored to " + (r.local_path || "work dir"), true);
+          }).catch(function (e) {
+            toast(e.message || "Restore failed", false);
+          }).then(function () { bRest.disabled = false; });
+        });
+        var bDel = document.createElement("button");
+        bDel.type = "button";
+        bDel.className = "btn btn-ghost";
+        bDel.textContent = "Delete";
+        bDel.addEventListener("click", function () {
+          var key = o.key || o.Key;
+          if (!confirm("Delete " + key + " from storage?")) return;
+          bDel.disabled = true;
+          api("/api/backups/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: key })
+          }).then(function () {
+            toast("Deleted " + key, true);
+            refreshStorage();
+          }).catch(function (e) {
+            toast(e.message || "Delete failed", false);
+          }).then(function () { bDel.disabled = false; });
+        });
+        actions.appendChild(bRest);
+        actions.appendChild(bDel);
+        row.appendChild(meta);
+        row.appendChild(actions);
+        box.appendChild(row);
+      });
+    }).catch(function (e) {
+      box.className = "hist-empty";
+      box.textContent = "Could not list storage: " + (e.message || e);
+    });
+  }
+
+  var btnStor = $("btn-refresh-storage");
+  if (btnStor) btnStor.addEventListener("click", function () { refreshStorage(); });
 
   function applyTermsUI(accepted) {
     termsAlreadyAccepted = !!accepted;
@@ -413,8 +495,10 @@
   loadTerms();
   refreshStatus();
   refreshHistory();
+  refreshStorage();
   setInterval(function () {
     refreshStatus();
     refreshHistory();
-  }, 4000);
+    refreshStorage();
+  }, 8000);
 })();
