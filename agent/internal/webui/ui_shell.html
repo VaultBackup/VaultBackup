@@ -143,6 +143,10 @@ pre.status{
   margin:0;white-space:pre-wrap;font-size:.76rem;line-height:1.5;color:var(--muted);
   max-height:220px;overflow:auto;background:#0a121d;border:1px solid var(--line);border-radius:12px;padding:.9rem;
 }
+.stor-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem .65rem;border:1px solid var(--line);border-radius:10px;margin-bottom:.45rem;background:rgba(10,18,29,.9)}
+.stor-meta{font-size:.78rem;color:var(--dim);word-break:break-all}
+.stor-actions{display:flex;gap:.35rem;flex-shrink:0}
+.stor-actions button{font-size:.72rem;padding:.3rem .5rem}
 .hist-empty{color:var(--dim);font-size:.85rem;padding:.4rem 0}
 .hist-item{
   border-bottom:1px solid rgba(30,41,59,.7);padding:.55rem 0;font-size:.82rem;color:#cbd5e1;
@@ -224,11 +228,11 @@ pre.status{
         <div class="field">
           <label>End-User License Agreement</label>
           <div class="terms-box" id="terms-text">Loading license agreement…</div>
-          <label class="terms-accept">
+          <label class="terms-accept" id="terms-accept-wrap">
             <input type="checkbox" id="terms_accept"/>
             <span>I have read and agree to the VaultBackup Agent EULA and Terms of Use.</span>
           </label>
-          <div class="hint">Required the first time; re-shown only if terms version changes.</div>
+          <div class="hint" id="terms-note"></div>
         </div>
         <div class="nav">
           <span></span>
@@ -274,7 +278,7 @@ pre.status{
         <div class="field">
           <label for="db_uri">Connection URI</label>
           <textarea id="db_uri" placeholder="postgres://user:pass@127.0.0.1:5432/db?sslmode=disable"></textarea>
-          <div class="hint">Prefer 127.0.0.1 over localhost if you hit IPv6 issues. Built-in dumps work without installing client tools (mysqldump/pg_dump). Oracle needs Oracle client tools; AS/400 needs SSH.</div>
+          <div class="hint">Prefer 127.0.0.1 over localhost if you hit IPv6 issues. Built-in dumps work without client tools for most engines.</div>
         </div>
         <div class="probe" id="db-probe">
           <div class="msg" id="db-probe-msg">Test the connection so we know this machine can reach the database.</div>
@@ -388,7 +392,7 @@ pre.status{
           <h2>Live status</h2>
           <p>Refreshes every few seconds while this page is open.</p>
         </div>
-        <pre class="status" id="live-status">Loading…</pre>
+        <pre id="status" class="status">—</pre>
       </div>
       <div class="card">
         <div class="card-head">
@@ -397,12 +401,23 @@ pre.status{
         </div>
         <div id="history" class="hist-empty">No history yet.</div>
       </div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Stored backups</h2>
+          <p>Objects on your destination. Restore downloads (and decrypts) into the agent work dir; delete removes from storage.</p>
+        </div>
+        <div class="nav" style="margin-bottom:.6rem">
+          <button type="button" class="btn btn-ghost" id="btn-refresh-storage">Refresh list</button>
+          <span id="storage-mode" style="font-size:.78rem;color:var(--dim)"></span>
+        </div>
+        <div id="storage-list" class="hist-empty">No objects listed yet.</div>
+      </div>
     </div>
   </form>
 
   <div class="foot">VaultBackup Agent · backups stay on your storage</div>
+  <div id="toast" class="toast hidden"></div>
 </div>
-<div id="toast" class="toast hidden"></div>
 <script>
 __APP_JS__
 </script>
