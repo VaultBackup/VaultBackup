@@ -28,7 +28,8 @@ func dumpMySQLBuiltin(workDir, name, uri string, schemaOnly bool) (string, error
 	if dbname == "" {
 		return "", fmt.Errorf("mysql: database name required in URI for built-in dump")
 	}
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&timeout=15s&readTimeout=300s&writeTimeout=60s",
+	// readTimeout/writeTimeout 0 = no limit (large table scans must not die at 5 minutes)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&timeout=30s&readTimeout=0&writeTimeout=0",
 		user, pass, host, port, dbname)
 
 	sqldb, err := sql.Open("mysql", dsn)
@@ -37,7 +38,7 @@ func dumpMySQLBuiltin(workDir, name, uri string, schemaOnly bool) (string, error
 	}
 	defer sqldb.Close()
 	sqldb.SetMaxOpenConns(2)
-	sqldb.SetConnMaxLifetime(time.Minute)
+	sqldb.SetConnMaxLifetime(0)
 
 	if err := sqldb.Ping(); err != nil {
 		return "", fmt.Errorf("mysql ping: %w", err)
@@ -217,11 +218,11 @@ func sqlLiteral(v any) string {
 }
 
 func quoteMyString(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `'`, `\'`)
-	s = strings.ReplaceAll(s, "\x00", `\0`)
-	s = strings.ReplaceAll(s, "\n", `\n`)
-	s = strings.ReplaceAll(s, "\r", `\r`)
-	s = strings.ReplaceAll(s, "\x1a", `\Z`)
+	s = strings.ReplaceAll(s, `\\`, `\\\\`)
+	s = strings.ReplaceAll(s, `'`, `\\'`)
+	s = strings.ReplaceAll(s, "\\x00", `\\0`)
+	s = strings.ReplaceAll(s, "\n", `\\n`)
+	s = strings.ReplaceAll(s, "\r", `\\r`)
+	s = strings.ReplaceAll(s, "\\x1a", `\\Z`)
 	return "'" + s + "'"
 }
