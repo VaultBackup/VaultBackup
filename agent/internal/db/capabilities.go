@@ -16,8 +16,8 @@ type Capability struct {
 func Capabilities() []Capability {
 	osName := runtime.GOOS
 	all := []Capability{
-		{Type: "mysql", Label: "MySQL / MariaDB / TiDB / SingleStore", Builtin: true, NativeTools: []string{"mysqldump", "mariadb-dump"}, Platforms: []string{"linux", "windows", "darwin"}, Notes: "Pure-Go logical dump embedded; optional mysqldump if PreferNativeTools"},
-		{Type: "postgres", Label: "PostgreSQL / Neon / Supabase / Timescale", Builtin: true, NativeTools: []string{"pg_dump"}, Platforms: []string{"linux", "windows", "darwin"}, Notes: "Pure-Go logical dump embedded; optional pg_dump"},
+		{Type: "mysql", Label: "MySQL / MariaDB / TiDB / SingleStore", Builtin: true, NativeTools: []string{"mysqldump", "mariadb-dump"}, Platforms: []string{"linux", "windows", "darwin"}, Notes: "Pure-Go logical dump embedded; optional mysqldump if PreferNativeTools; large DBs: native tools recommended"},
+		{Type: "postgres", Label: "PostgreSQL / Neon / Supabase / Timescale", Builtin: true, NativeTools: []string{"pg_dump"}, Platforms: []string{"linux", "windows", "darwin"}, Notes: "Pure-Go logical dump embedded; optional pg_dump; large DBs: native tools recommended"},
 		{Type: "cockroach", Label: "CockroachDB", Builtin: true, NativeTools: []string{"pg_dump", "cockroach"}, Platforms: []string{"linux", "windows", "darwin"}},
 		{Type: "sqlite", Label: "SQLite / Turso / libSQL", Builtin: true, NativeTools: []string{"sqlite3"}, Platforms: []string{"linux", "windows", "darwin"}, Notes: "File copy always works"},
 		{Type: "mongodb", Label: "MongoDB / DocumentDB", Builtin: true, NativeTools: []string{"mongodump"}, Platforms: []string{"linux", "windows", "darwin"}},
@@ -31,6 +31,9 @@ func Capabilities() []Capability {
 		{Type: "as400", Label: "IBM i / AS/400", Builtin: true, NativeTools: []string{"ssh"}, Platforms: []string{"linux", "windows", "darwin"}, Notes: "SAVLIB/SAVOBJ via SSH+SFTP; multi-lib; optional SAVSECDTA/SAVCFG; or file:.savf"},
 		{Type: "command", Label: "Custom allowlisted command", Builtin: false, NativeTools: []string{}, Platforms: []string{"linux", "windows", "darwin"}, Notes: "Disabled unless VAULTBACKUP_ALLOW_SHELL_COMMAND=1"},
 	}
+	// Size guidance (soft): agent has no hard dump cap; need ~2x free disk for dump+encrypt.
+	// Worker console path remains ~20MB. Prefer native tools for multi-GB MySQL/Postgres.
+	// Filter notes by platform awareness (still list all; UI can show support)
 	_ = osName
 	return all
 }
