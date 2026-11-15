@@ -1,6 +1,6 @@
 # VaultBackup Agent — capability matrix
 
-**Version:** 1.2.8+  
+**Version:** 1.2.9+  
 **Downloads:** https://backup.enadoctemp.workers.dev/install  
 **Windows MSI:** https://backup.enadoctemp.workers.dev/download/windows-msi  
 **Support:** [docs/SUPPORT.md](docs/SUPPORT.md)
@@ -26,12 +26,25 @@ Same binary behavior: **schedule → dump → encrypt (optional) → upload to y
 
 CI: `.github/workflows/build-agents.yml`.
 
+## Size limits (agent vs Worker)
+
+| Path | Limit |
+|------|--------|
+| **Desktop agent** | **No hard MB/GB dump cap.** Needs free disk ≈ **2× compressed dump** (dump + encrypt temp). Preflight blocks if work dir has **< 512 MB** free. |
+| **S3 / R2 / B2 / Wasabi** | Multipart (≥ 64 MB), 8 MiB parts — multi‑GB objects supported |
+| **Azure Blob** | Block upload (≥ 64 MB), 8 MiB blocks — large objects supported |
+| **Local / SFTP** | Free disk / session stability |
+| **WebDAV** | Single PUT (prefer moderate sizes or S3 for multi‑GB) |
+| **Worker console dumps** | **~20 MB** hard (Worker memory); public hosts only |
+
+For multi‑GB MySQL/Postgres, prefer **native tools** (`PreferNativeTools`) when installed.
+
 ## Local Web UI (`127.0.0.1:8787`)
 
 - Setup wizard: Welcome → Database (**test required**) → Destination (**test required**) → Review
 - Save is blocked until **both** connection tests pass
 - One-time **EULA** acceptance (re-prompt only when terms version changes)
-- Live status, detailed history, **Stored backups** (list / restore / delete on destination)
+- Live status (includes **disk free MB**), detailed history, **Stored backups** (list / restore / delete)
 - Secrets masked on read; blank fields keep previous values on save
 - Optional `--webui-password`; CSP-hardened UI
 
@@ -48,7 +61,7 @@ Most engines use **built-in pure-Go dumps** first (no `mysqldump` / `pg_dump` re
 | sqlite / turso / libsql | Built-in / file | yes | N/A | File copy path |
 | postgres / postgresql | Built-in; optional `pg_dump` | yes | yes | Prefer `127.0.0.1` over `localhost` |
 | cockroach / cockroachdb | Postgres-compatible path | yes | yes | |
-| mysql / mariadb | Built-in; optional `mysqldump` | yes | yes | TCP recommended |
+| mysql / mariadb | Built-in; optional `mysqldump` | yes | yes | TCP recommended; large dumps: no read timeout |
 | mssql / sqlserver | Built-in / sqlcmd | yes | limited | |
 | mongodb / mongo | Built-in / mongodump | yes | limited | |
 | redis | Built-in / redis-cli | yes | N/A | Snapshot-style |
@@ -66,8 +79,8 @@ Backup data is written **directly** to your storage. The Worker is used for **li
 | Mode | Notes |
 |------|--------|
 | `local` | Folder on disk |
-| `s3` | AWS S3 + S3-compatible (R2, B2, MinIO, Wasabi) |
-| `azure` | Azure Blob (Shared Key) |
+| `s3` | AWS S3 + S3-compatible (R2, B2, MinIO, Wasabi); multipart large files |
+| `azure` | Azure Blob (Shared Key); block upload for large files |
 | `webdav` | WebDAV PUT |
 | `sftp` | SFTP (password or key file) |
 
@@ -78,10 +91,10 @@ Presets: [docs/STORAGE.md](docs/STORAGE.md).
 
 ## Safety
 
-- Disk space preflight before dump
+- Disk space preflight before dump (≥ 512 MB free on work dir)
 - Single-flight backup lock
 - 72h offline license grace
-- Optional AES-256-GCM file encryption before upload
+- Optional AES-256-GCM file encryption before upload (streaming)
 - Device fingerprint binding (one token ↔ one device)
 - Config secrets not stored as plaintext JSON
 - Retention skips `agent.key`, logs, and history files
