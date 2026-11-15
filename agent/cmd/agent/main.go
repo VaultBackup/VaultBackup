@@ -27,7 +27,7 @@ import (
 	"github.com/vaultbackup/agent/internal/webui"
 )
 
-var version = "1.2.9"
+var version = "1.3.0"
 
 func main() {
 	if isWindowsService() {
@@ -48,15 +48,30 @@ func runInteractive() error {
 	noWebUI := flag.Bool("no-webui", false, "Disable Web UI")
 	once := flag.Bool("once", false, "Run one backup then exit")
 	backupType := flag.String("type", "", "Override backup type for this run")
-	restore := flag.String("restore", "", "Local path or remote storage key to restore")
+	restore := flag.String("restore", "", "Decrypt encrypted backup file")
 	restoreOut := flag.String("restore-out", "", "Output path for decrypted file")
+	selfUpdate := flag.Bool("self-update", false, "Download and install the latest agent binary, then exit")
 	flag.Parse()
+
+	if *selfUpdate {
+		cfg := config.LoadSoft(*configPath)
+		server := cfg.License.ServerURL
+		if server == "" {
+			server = "https://backup.enadoctemp.workers.dev"
+		}
+		log.Printf("self-update: checking %s (current %s)", server, version)
+		latest, err := update.Apply(server, version)
+		if err != nil {
+			return fmt.Errorf("self-update: %w", err)
+		}
+		log.Printf("self-update: installed %s — restart the agent/service to run the new binary", latest)
+		return nil
+	}
 
 	if *restore != "" {
 		runRestore(*configPath, *restore, *restoreOut)
 		return nil
 	}
-
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -223,6 +238,27 @@ func doBackup(cfg config.Config, typeOverride string) error {
 			res.SizeBytes = st.Size()
 		}
 	}
+
+	var lastPct int = -1
+	var lastProgAt time.Time
+	upload.SetProgress(func(transferred, total int64) {
+		if total <= 0 {
+			return
+		}
+		pct := int(transferred * 100 / total)
+		if pct/10 == lastPct/10 && time.Since(lastProgAt) < 15*time.Second && pct < 100 {
+			return
+		}
+		lastPct = pct
+		lastProgAt = time.Now()
+		log.Printf("upload progress %d%% (%d / %d bytes)", pct, transferred, total)
+		_ = license.PushEvent(cfg, map[string]any{
+			"event": "upload_progress", "name": cfg.Name, "type": bt,
+			"transferred": transferred, "total": total, "percent": pct,
+			"dest": cfg.Destination.Mode,
+		})
+	})
+	defer upload.SetProgress(nil)
 
 	remote, err := upload.Put(cfg, uploadPath)
 	if err != nil {
