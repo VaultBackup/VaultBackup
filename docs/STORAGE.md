@@ -11,7 +11,7 @@ The agent uploads **directly** to local disk, S3-compatible APIs, Azure, WebDAV,
 | `s3` | AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO | Multipart ≥ 64 MiB (8 MiB parts) |
 | `local` | NAS path or disk on the agent machine | Free disk only |
 | `azure` | Azure Blob (shared key) | Block upload ≥ 64 MiB (8 MiB blocks) |
-| `webdav` | NAS / Nextcloud-style WebDAV | Single PUT (prefer moderate sizes; 60m client timeout) |
+| `webdav` | NAS / Nextcloud-style WebDAV | ≥ 64 MiB: Nextcloud chunked (auto-detect), Content-Range PUT (Apache/NAS), SabreDAV PATCH append; else single PUT |
 | `sftp` | SFTP server | Session stability |
 
 Aliases: `r2`, `b2`, `minio`, `wasabi` → treated as `s3`.
@@ -52,7 +52,11 @@ On every destination mode the agent can:
 
 ### WebDAV / SFTP
 - Full URL or host + path; credentials or key file for SFTP  
-- WebDAV: single PUT — use S3 or Azure for multi-GB dumps when possible  
+- WebDAV large files (≥ 64 MiB) try, in order:
+  1. **Nextcloud/ownCloud chunked** when the URL contains `/remote.php/dav` or `/dav/files/`
+  2. **Content-Range sequential PUT** (Apache `mod_dav` / many NAS)
+  3. **SabreDAV PATCH append** (`application/x-sabredav-partialupdate`)
+  4. Single long PUT as last resort  
 
 ### Local disk
 - Destination mode **local**  
