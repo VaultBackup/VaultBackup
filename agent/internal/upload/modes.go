@@ -37,7 +37,7 @@ func Modes() []Mode {
 			ID:     "webdav",
 			Label:  "WebDAV / NAS",
 			Direct: true,
-			Notes:  "Single HTTP PUT with optional Basic auth (60m client timeout). Prefer S3/Azure for multi-GB. MKCOL ensures collection exists.",
+			Notes:  "Basic auth. >=64 MiB: Nextcloud chunked (when detected), Content-Range PUT (Apache/NAS), SabreDAV PATCH append; else single PUT.",
 		},
 		{
 			ID:     "sftp",
