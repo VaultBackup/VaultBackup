@@ -17,8 +17,10 @@ type Policy struct {
 	Keep    int
 }
 
-// isBackupArtifact returns true for agent backup payloads only (not keys/logs/config).
-func isBackupArtifact(name string) bool {
+// IsBackupArtifact returns true for agent backup payloads only (not keys/logs/config).
+// Used by workdir retention and destination ApplyRetention so we never delete
+// agent.key, logs, or unrelated objects in a shared bucket prefix.
+func IsBackupArtifact(name string) bool {
 	base := strings.ToLower(filepath.Base(name))
 	switch base {
 	case "agent.key", "agent.log", "history.json", "config.yaml", "config.json":
@@ -50,7 +52,7 @@ func (p Policy) Apply(dir string) error {
 		if e.IsDir() {
 			continue
 		}
-		if !isBackupArtifact(e.Name()) {
+		if !IsBackupArtifact(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
