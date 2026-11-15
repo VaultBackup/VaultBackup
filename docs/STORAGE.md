@@ -6,13 +6,13 @@ The agent uploads **directly** to local disk, S3-compatible APIs, Azure, WebDAV,
 
 ## Modes
 
-| Mode | Typical use |
-|------|-------------|
-| `s3` | AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO |
-| `local` | NAS path or disk on the agent machine |
-| `azure` | Azure Blob (shared key) |
-| `webdav` | NAS / Nextcloud-style WebDAV |
-| `sftp` | SFTP server |
+| Mode | Typical use | Large objects |
+|------|-------------|---------------|
+| `s3` | AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO | Multipart ≥ 64 MiB (8 MiB parts) |
+| `local` | NAS path or disk on the agent machine | Free disk only |
+| `azure` | Azure Blob (shared key) | Block upload ≥ 64 MiB (8 MiB blocks) |
+| `webdav` | NAS / Nextcloud-style WebDAV | Single PUT (prefer moderate sizes; 60m client timeout) |
+| `sftp` | SFTP server | Session stability |
 
 Aliases: `r2`, `b2`, `minio`, `wasabi` → treated as `s3`.
 
@@ -48,9 +48,11 @@ On every destination mode the agent can:
 ### Azure Blob
 - Storage account name, container, access key  
 - Optional prefix  
+- Objects ≥ 64 MiB use Put Block / Put Block List automatically  
 
 ### WebDAV / SFTP
 - Full URL or host + path; credentials or key file for SFTP  
+- WebDAV: single PUT — use S3 or Azure for multi-GB dumps when possible  
 
 ### Local disk
 - Destination mode **local**  
@@ -73,4 +75,4 @@ Configure retention in the agent UI (keep count / days depending on build fields
 - Prefer regions that match data-residency expectations  
 - Keep restore drills on a schedule (Stored backups → Restore, or CLI `-restore`)  
 
-See also: [PRODUCT.md](PRODUCT.md) · [INSTALL.md](../INSTALL.md) · [SUPPORT.md](SUPPORT.md)
+See also: [PRODUCT.md](PRODUCT.md) · [INSTALL.md](../INSTALL.md) · [SUPPORT.md](SUPPORT.md) · [CAPABILITIES.md](../CAPABILITIES.md)
