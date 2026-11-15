@@ -58,6 +58,11 @@ func putSFTP(d config.Destination, localPath string) (string, error) {
 		return "", err
 	}
 	defer src.Close()
+	st, _ := src.Stat()
+	var total int64
+	if st != nil {
+		total = st.Size()
+	}
 
 	dst, err := sc.OpenFile(remotePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC)
 	if err != nil {
@@ -65,9 +70,12 @@ func putSFTP(d config.Destination, localPath string) (string, error) {
 	}
 	defer dst.Close()
 
-	if _, err := io.Copy(dst, src); err != nil {
+	reportProgress(0, total)
+	pr := newProgressReader(src, total)
+	if _, err := io.Copy(dst, pr); err != nil {
 		return "", fmt.Errorf("sftp copy: %w", err)
 	}
+	reportProgress(total, total)
 	return remotePath, nil
 }
 
@@ -97,25 +105,17 @@ func hostKeyCallback(insecure bool) ssh.HostKeyCallback {
 	if insecure {
 		return ssh.InsecureIgnoreHostKey() //nolint:gosec // explicit operator choice
 	}
-	// Known-hosts style: accept first-seen key is not ideal; require insecure flag
-	// or system known_hosts. Prefer known_hosts when present.
 	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		// Try ~/.ssh/known_hosts
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("sftp: host key verification failed (set sftp_insecure=true to skip): no home dir")
 		}
 		khPath := home + "/.ssh/known_hosts"
-		data, err := os.ReadFile(khPath)
+		_, err = os.ReadFile(khPath)
 		if err != nil {
 			return fmt.Errorf("sftp: host key verification failed (missing known_hosts; set sftp_insecure=true): %w", err)
 		}
-		// Minimal marker check: fingerprint string presence is not full TOFU.
-		// For production fleets prefer insecure=false with managed known_hosts via ssh-keyscan.
-		_ = data
 		_ = key
-		// If known_hosts exists, still require explicit trust for non-interactive agents:
-		// refuse unless insecure — documents the choice clearly.
 		return fmt.Errorf("sftp: strict host key check requires pre-provisioned trust; set sftp_insecure=true for first deploy or pin keys via automation")
 	}
 }
