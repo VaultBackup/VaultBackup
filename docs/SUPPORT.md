@@ -33,6 +33,27 @@ This page is for **end users and operators** who run the desktop agent.
 
 ---
 
+## Agent error codes (history / events)
+
+Recent agents attach a stable **`code`** on failed (and successful) runs. Check **Recent history** in the agent UI or events on the console.
+
+| Code | Meaning | What to do |
+|------|---------|------------|
+| `OK` | Backup finished successfully | — |
+| `LICENSE_BLOCKED` | Token missing, invalid, or bound to another device | New token or **Unbind device** in console |
+| `DISK_FULL` | Work directory has under ~512 MB free | Free disk on the agent host |
+| `DB_UNREACHABLE` | Cannot connect / ping the database | Host, port, firewall, prefer `127.0.0.1` |
+| `DB_DUMP_FAILED` | Dump failed after connect | Check history detail; try native tools for large DBs |
+| `TOOL_MISSING` | Required CLI tool not on PATH | Install tool or use built-in dump engines |
+| `ENCRYPT_FAILED` | Encryption or key file problem | Check `security.key_file` permissions |
+| `UPLOAD_FAILED` | Destination write failed | Re-test destination; check credentials/network |
+| `DEST_PROBE_FAILED` | Destination test failed | Fix storage settings before Save |
+| `ALREADY_RUNNING` | Another backup is in progress | Wait for it to finish |
+| `CONFIG_INVALID` | Bad config / URI | Review wizard fields |
+| `UNKNOWN` | Unclassified error | Use full error text + logs |
+
+---
+
 ## Common issues
 
 ### Cannot save configuration
@@ -62,7 +83,7 @@ On Review, use **Test database** / **Test destination** again if needed.
 
 ### Backup failed / empty file
 
-- Open **Live status** and **Recent history** on the Review page for the exact error.
+- Open **Live status** and **Recent history** on the Review page for the exact error and **code**.
 - Check agent log (paths vary):
   - Linux service: `/var/lib/vaultbackup` or journal `vaultbackup-agent`
   - Config `log_file` value
@@ -126,7 +147,7 @@ They are sealed on disk with `agent.key`. Protect the key file and config the sa
 
 ## Getting more help
 
-1. Capture **Live status** JSON and the failing **history** line from the agent UI.  
+1. Capture **Live status** JSON and the failing **history** line (include **code**) from the agent UI.  
 2. Note OS, agent version (download date / binary name), database type, destination mode.  
 3. Contact your VaultBackup administrator with that information (do **not** send full tokens or passwords).
 
