@@ -18,6 +18,7 @@ type Entry struct {
 	Path      string    `json:"path,omitempty"`
 	Message   string    `json:"message,omitempty"`
 	Error     string    `json:"error,omitempty"`
+	Code      string    `json:"code,omitempty"` // stable errcode, e.g. DISK_FULL
 	Duration  string    `json:"duration,omitempty"`
 }
 
@@ -60,6 +61,7 @@ func Complete(started time.Time, e Entry) error {
 			return save(list)
 		}
 	}
+	// Fallback: newest running entry of same type
 	for i := range list {
 		if list[i].Status == "running" && (e.Type == "" || list[i].Type == e.Type) {
 			list[i] = e
@@ -97,6 +99,9 @@ func List(limit int) []Entry {
 			list[i].Finished = list[i].Started
 			if list[i].Error == "" {
 				list[i].Error = "stale running entry (agent restarted or crashed)"
+			}
+			if list[i].Code == "" {
+				list[i].Code = "UNKNOWN"
 			}
 			changed = true
 		}
