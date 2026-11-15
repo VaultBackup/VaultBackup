@@ -34,7 +34,7 @@ CI: `.github/workflows/build-agents.yml`.
 | **S3 / R2 / B2 / Wasabi** | Multipart (≥ 64 MB), 8 MiB parts — multi‑GB objects supported |
 | **Azure Blob** | Block upload (≥ 64 MB), 8 MiB blocks — large objects supported |
 | **Local / SFTP** | Free disk / session stability |
-| **WebDAV** | Single PUT (prefer moderate sizes or S3 for multi‑GB) |
+| **WebDAV** | ≥ 64 MiB: Nextcloud chunked (auto-detect), Content-Range PUT (Apache/NAS), SabreDAV PATCH append; else single PUT |
 | **Worker console dumps** | **~20 MB** hard (Worker memory); public hosts only |
 
 For multi‑GB MySQL/Postgres, prefer **native tools** (`PreferNativeTools`) when installed.
@@ -81,7 +81,7 @@ Backup data is written **directly** to your storage. The Worker is used for **li
 | `local` | Folder on disk |
 | `s3` | AWS S3 + S3-compatible (R2, B2, MinIO, Wasabi); multipart large files |
 | `azure` | Azure Blob (Shared Key); block upload for large files |
-| `webdav` | WebDAV PUT |
+| `webdav` | WebDAV with large-file fallbacks (Nextcloud chunked / Content-Range / SabreDAV PATCH) |
 | `sftp` | SFTP (password or key file) |
 
 Aliases: `r2`, `b2`, `minio`, `wasabi` → `s3`; `azureblob` → `azure`.  
@@ -98,12 +98,14 @@ Presets: [docs/STORAGE.md](docs/STORAGE.md).
 - Device fingerprint binding (one token ↔ one device)
 - Config secrets not stored as plaintext JSON
 - Retention skips `agent.key`, logs, and history files
+- Stable error codes on history + events (`LICENSE_BLOCKED`, `DISK_FULL`, …)
+- Webhook notify on failure **and** success when configured
 
 ## Build
 
 ```bash
 cd agent
-go test ./internal/config/
+go test ./internal/config/ ./internal/errcode/
 GOOS=linux   GOARCH=amd64 go build -o ../vaultbackup-agent-linux-amd64 ./cmd/agent
 GOOS=windows GOARCH=amd64 go build -o ../vaultbackup-agent-windows-amd64.exe ./cmd/agent
 GOOS=darwin  GOARCH=arm64 go build -o ../vaultbackup-agent-darwin-arm64 ./cmd/agent
