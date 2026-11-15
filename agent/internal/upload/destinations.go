@@ -16,20 +16,11 @@ import (
 )
 
 const (
-	// webdavChunkThreshold: above this size try multi-request strategies.
 	webdavChunkThreshold = 64 << 20 // 64 MiB
-	// webdavPartSize: size of each Content-Range / Nextcloud chunk.
-	webdavPartSize = 8 << 20 // 8 MiB
+	webdavPartSize       = 8 << 20  // 8 MiB
 )
 
-// putWebDAV uploads with adaptive large-file fallbacks:
-//
-//  1. Single PUT for objects under 64 MiB (universal).
-//  2. Nextcloud/ownCloud chunked protocol when the URL looks like NC/OC
-//     (/remote.php/dav/ or /dav/files/).
-//  3. Sequential PUT with Content-Range (Apache mod_dav / many NAS).
-//  4. SabreDAV PATCH append (ownCloud / some Sabre servers).
-//  5. Fall back to single PUT if specialized strategies are rejected.
+// putWebDAV uploads with adaptive large-file fallbacks.
 func putWebDAV(d config.Destination, localPath string) (string, error) {
 	if d.WebDAVURL == "" {
 		return "", fmt.Errorf("webdav_url required")
@@ -44,7 +35,6 @@ func putWebDAV(d config.Destination, localPath string) (string, error) {
 	}
 	size := st.Size()
 
-	// Small files: single PUT is fine everywhere.
 	if size < webdavChunkThreshold {
 		if err := putWebDAVSingle(d, remote, localPath, size); err != nil {
 			return "", err
@@ -52,9 +42,7 @@ func putWebDAV(d config.Destination, localPath string) (string, error) {
 		return remote, nil
 	}
 
-	// Large files — try specialized strategies in order of likelihood.
 	var errs []string
-
 	if looksLikeNextcloud(base) {
 		if key, err := putWebDAVNextcloudChunked(d, base, localPath, size); err == nil {
 			return key, nil
@@ -62,26 +50,21 @@ func putWebDAV(d config.Destination, localPath string) (string, error) {
 			errs = append(errs, "nextcloud-chunk: "+err.Error())
 		}
 	}
-
 	if err := putWebDAVContentRange(d, remote, localPath, size); err == nil {
 		return remote, nil
 	} else {
 		errs = append(errs, "content-range: "+err.Error())
 	}
-
 	if err := putWebDAVSabreAppend(d, remote, localPath, size); err == nil {
 		return remote, nil
 	} else {
 		errs = append(errs, "sabre-patch: "+err.Error())
 	}
-
-	// Last resort: single long PUT (may hit proxy/timeout limits).
 	if err := putWebDAVSingle(d, remote, localPath, size); err == nil {
 		return remote, nil
 	} else {
 		errs = append(errs, "single-put: "+err.Error())
 	}
-
 	return "", fmt.Errorf("webdav large upload failed (%s)", strings.Join(errs, "; "))
 }
 
@@ -91,7 +74,6 @@ func putWebDAVSingle(d config.Destination, remote, localPath string, size int64)
 		return err
 	}
 	defer f.Close()
-
 	req, err := http.NewRequest(http.MethodPut, remote, f)
 	if err != nil {
 		return err
@@ -113,17 +95,15 @@ func putWebDAVSingle(d config.Destination, remote, localPath string, size int64)
 	return nil
 }
 
-// putWebDAVContentRange uploads in sequential ranges using
-// Content-Range: bytes START-END/* (Apache mod_dav and compatible NAS).
 func putWebDAVContentRange(d config.Destination, remote, localPath string, size int64) error {
 	f, err := os.Open(localPath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
 	buf := make([]byte, webdavPartSize)
 	var offset int64
+	reportProgress(0, size)
 	for offset < size {
 		n, rerr := io.ReadFull(f, buf)
 		if n == 0 {
@@ -133,9 +113,7 @@ func putWebDAVContentRange(d config.Destination, remote, localPath string, size 
 			return rerr
 		}
 		end := offset + int64(n) - 1
-		// Apache mod_dav: "bytes START-END/*" (space, not equals).
 		rangeHdr := fmt.Sprintf("bytes %d-%d/*", offset, end)
-
 		req, err := http.NewRequest(http.MethodPut, remote, &byteReader{b: buf[:n]})
 		if err != nil {
 			return err
@@ -152,7 +130,6 @@ func putWebDAVContentRange(d config.Destination, remote, localPath string, size 
 		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		resp.Body.Close()
-		// 200/201/204 success; 501/405 means server does not support partial PUT
 		if resp.StatusCode == http.StatusNotImplemented || resp.StatusCode == http.StatusMethodNotAllowed {
 			return fmt.Errorf("server rejected Content-Range PUT (HTTP %d)", resp.StatusCode)
 		}
@@ -160,6 +137,7 @@ func putWebDAVContentRange(d config.Destination, remote, localPath string, size 
 			return fmt.Errorf("content-range put HTTP %d at offset %d: %s", resp.StatusCode, offset, string(body))
 		}
 		offset += int64(n)
+		reportProgress(offset, size)
 		if rerr == io.EOF || rerr == io.ErrUnexpectedEOF {
 			break
 		}
@@ -170,7 +148,6 @@ func putWebDAVContentRange(d config.Destination, remote, localPath string, size 
 	return nil
 }
 
-// byteReader is a tiny io.Reader over a slice (avoids extra allocs).
 type byteReader struct {
 	b []byte
 	i int
@@ -185,18 +162,16 @@ func (r *byteReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// putWebDAVSabreAppend uses SabreDAV PATCH + X-Update-Range: append.
-// First chunk creates the file with PUT; subsequent chunks PATCH-append.
 func putWebDAVSabreAppend(d config.Destination, remote, localPath string, size int64) error {
 	f, err := os.Open(localPath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
 	buf := make([]byte, webdavPartSize)
 	var offset int64
 	first := true
+	reportProgress(0, size)
 	for offset < size {
 		n, rerr := io.ReadFull(f, buf)
 		if n == 0 {
@@ -206,7 +181,6 @@ func putWebDAVSabreAppend(d config.Destination, remote, localPath string, size i
 			return rerr
 		}
 		chunk := buf[:n]
-
 		var req *http.Request
 		if first {
 			req, err = http.NewRequest(http.MethodPut, remote, &byteReader{b: chunk})
@@ -240,6 +214,7 @@ func putWebDAVSabreAppend(d config.Destination, remote, localPath string, size i
 		}
 		first = false
 		offset += int64(n)
+		reportProgress(offset, size)
 		if rerr == io.EOF || rerr == io.ErrUnexpectedEOF {
 			break
 		}
@@ -250,7 +225,6 @@ func putWebDAVSabreAppend(d config.Destination, remote, localPath string, size i
 	return nil
 }
 
-// looksLikeNextcloud detects Nextcloud / ownCloud WebDAV base URLs.
 func looksLikeNextcloud(base string) bool {
 	u := strings.ToLower(base)
 	return strings.Contains(u, "/remote.php/dav") ||
@@ -259,48 +233,33 @@ func looksLikeNextcloud(base string) bool {
 		strings.Contains(u, "/ocs/v")
 }
 
-// putWebDAVNextcloudChunked implements Nextcloud chunked upload:
-//
-//	MKCOL  /remote.php/dav/uploads/{user}/{uploadId}
-//	PUT    .../00001, 00002, ...  (chunks 5MB–5GB; we use 8 MiB)
-//	MOVE   .../.file  → final destination (Destination header)
-//
-// See: https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/chunking.html
 func putWebDAVNextcloudChunked(d config.Destination, base, localPath string, size int64) (string, error) {
 	user := webdavUserFromURL(base, d.WebDAVUser)
 	if user == "" {
 		return "", fmt.Errorf("cannot derive Nextcloud username for chunked upload")
 	}
-
-	// Build uploads root: prefer /remote.php/dav/uploads/{user}
 	uploadsRoot := nextcloudUploadsRoot(base, user)
 	uploadID := randomHex(16)
 	chunkDir := strings.TrimRight(uploadsRoot, "/") + "/" + uploadID
 	finalDest := strings.TrimRight(base, "/") + "/" + path.Base(localPath)
-
-	// 1) MKCOL upload directory
 	if err := webdavMKCOL(d, chunkDir); err != nil {
 		return "", fmt.Errorf("mkcol upload dir: %w", err)
 	}
-
-	// Cleanup on failure (best-effort)
 	cleanup := true
 	defer func() {
 		if cleanup {
 			_ = webdavDelete(d, chunkDir)
 		}
 	}()
-
-	// 2) Upload numbered chunks
 	f, err := os.Open(localPath)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-
 	buf := make([]byte, webdavPartSize)
 	part := 1
 	var written int64
+	reportProgress(0, size)
 	for written < size {
 		n, rerr := io.ReadFull(f, buf)
 		if n == 0 {
@@ -333,6 +292,7 @@ func putWebDAVNextcloudChunked(d config.Destination, base, localPath string, siz
 		}
 		part++
 		written += int64(n)
+		reportProgress(written, size)
 		if rerr == io.EOF || rerr == io.ErrUnexpectedEOF {
 			break
 		}
@@ -340,8 +300,6 @@ func putWebDAVNextcloudChunked(d config.Destination, base, localPath string, siz
 			return "", rerr
 		}
 	}
-
-	// 3) MOVE .file → final destination (assembles chunks server-side)
 	src := chunkDir + "/.file"
 	req, err := http.NewRequest("MOVE", src, nil)
 	if err != nil {
@@ -367,11 +325,6 @@ func putWebDAVNextcloudChunked(d config.Destination, base, localPath string, siz
 }
 
 func nextcloudUploadsRoot(base, user string) string {
-	// Try to map files URL → uploads URL.
-	// Common patterns:
-	//   https://host/remote.php/dav/files/USER[/path]
-	//   https://host/remote.php/webdav[/path]
-	//   https://host/dav/files/USER
 	u := base
 	if i := strings.Index(strings.ToLower(u), "/remote.php/dav/files/"); i >= 0 {
 		return u[:i] + "/remote.php/dav/uploads/" + user
@@ -382,7 +335,6 @@ func nextcloudUploadsRoot(base, user string) string {
 	if i := strings.Index(strings.ToLower(u), "/dav/files/"); i >= 0 {
 		return u[:i] + "/dav/uploads/" + user
 	}
-	// Fallback: sibling uploads under same host root
 	parsed, err := url.Parse(base)
 	if err != nil {
 		return strings.TrimRight(base, "/") + "/../uploads/" + user
@@ -394,7 +346,6 @@ func webdavUserFromURL(base, configuredUser string) string {
 	if configuredUser != "" {
 		return configuredUser
 	}
-	// Extract from /files/USER/ path segment
 	low := strings.ToLower(base)
 	for _, marker := range []string{"/dav/files/", "/remote.php/dav/files/"} {
 		if i := strings.Index(low, marker); i >= 0 {
@@ -424,7 +375,6 @@ func webdavMKCOL(d config.Destination, collectionURL string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	// 201 Created, 405/409 already exists — all OK
 	if resp.StatusCode >= 300 && resp.StatusCode != 405 && resp.StatusCode != 409 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("MKCOL HTTP %d: %s", resp.StatusCode, string(b))
@@ -454,7 +404,6 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// webdavEnsureCollection issues MKCOL for the URL (ignores 405/409 already-exists).
 func webdavEnsureCollection(d config.Destination, collectionURL string) error {
 	return webdavMKCOL(d, collectionURL)
 }
