@@ -17,6 +17,7 @@ import (
 	"github.com/vaultbackup/agent/internal/license"
 	"github.com/vaultbackup/agent/internal/secure"
 	"github.com/vaultbackup/agent/internal/sysinfo"
+	"github.com/vaultbackup/agent/internal/update"
 	"github.com/vaultbackup/agent/internal/upload"
 )
 
@@ -26,6 +27,7 @@ type Server struct {
 	Password    string
 	TLSCertFile string
 	TLSKeyFile  string
+	Version     string // agent binary version (set by main)
 	OnRun       func() error
 	mu          sync.Mutex
 	lastErr     string
@@ -312,10 +314,27 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	lastErr := s.lastErr
 	s.mu.Unlock()
-	writeJSON(w, map[string]any{
-		"host": host, "database": db, "complete": config.Complete(cfg),
-		"licenseOk": ok && lic.OK, "licenseReason": first(reason, lic.Reason), "lastError": lastErr,
-	})
+	out := map[string]any{
+		"name":          cfg.Name,
+		"version":       s.Version,
+		"host":          host,
+		"database":      db,
+		"complete":      config.Complete(cfg),
+		"licenseOk":     ok && lic.OK,
+		"licenseReason": first(reason, lic.Reason),
+		"lastError":     lastErr,
+	}
+	server := cfg.License.ServerURL
+	if server == "" {
+		server = "https://backup.enadoctemp.workers.dev"
+	}
+	if s.Version != "" {
+		if latest, avail, err := update.Check(server, s.Version); err == nil && avail {
+			out["updateAvailable"] = true
+			out["latestVersion"] = latest
+		}
+	}
+	writeJSON(w, out)
 }
 
 func (s *Server) handleTestLicense(w http.ResponseWriter, r *http.Request) {
@@ -352,15 +371,26 @@ func (s *Server) handleRunOnce(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
-	list := history.List(30)
+	list := history.List(50)
 	out := make([]map[string]any, 0, len(list))
 	for _, e := range list {
-		out = append(out, map[string]any{
-			"started": e.Started.Format(time.RFC3339), "status": e.Status, "size": e.SizeBytes,
-			"message": e.Message, "error": e.Error, "path": e.Path, "type": e.Type, "duration": e.Duration,
-		})
+		row := map[string]any{
+			"started":  e.Started.Format(time.RFC3339),
+			"status":   e.Status,
+			"size":     e.SizeBytes,
+			"message":  e.Message,
+			"error":    e.Error,
+			"code":     e.Code,
+			"path":     e.Path,
+			"type":     e.Type,
+			"duration": e.Duration,
+		}
+		if !e.Finished.IsZero() {
+			row["finished"] = e.Finished.Format(time.RFC3339)
+		}
+		out = append(out, row)
 	}
-	writeJSON(w, map[string]any{"history": out})
+	writeJSON(w, map[string]any{"history": out, "count": len(out)})
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
@@ -391,7 +421,6 @@ func (s *Server) handleTestDB(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 405, "method not allowed")
 		return
 	}
-
 	var body struct {
 		Type string `json:"type"`
 		URI  string `json:"uri"`
