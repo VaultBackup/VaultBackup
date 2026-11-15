@@ -9,8 +9,8 @@ import (
 	"github.com/vaultbackup/agent/internal/httpx"
 )
 
-// Failure posts a critical error to the configured webhook.
-func Failure(cfg config.Config, title, detail string) {
+// post sends a JSON webhook payload when Notify.WebhookURL is set.
+func post(cfg config.Config, title, detail, level string) {
 	url := cfg.Notify.WebhookURL
 	if url == "" {
 		return
@@ -20,6 +20,7 @@ func Failure(cfg config.Config, title, detail string) {
 		"name":  cfg.Name,
 		"title": title,
 		"body":  detail,
+		"level": level,
 	}
 	data, _ := json.Marshal(payload)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
@@ -32,4 +33,14 @@ func Failure(cfg config.Config, title, detail string) {
 		return
 	}
 	resp.Body.Close()
+}
+
+// Failure posts a critical error to the configured webhook.
+func Failure(cfg config.Config, title, detail string) {
+	post(cfg, title, detail, "error")
+}
+
+// Success posts a success notice to the configured webhook.
+func Success(cfg config.Config, title, detail string) {
+	post(cfg, title, detail, "ok")
 }
