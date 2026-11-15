@@ -43,19 +43,29 @@ func putS3(d config.Destination, localPath string) (string, error) {
 }
 
 func s3HostBucket(d config.Destination) (host, urlStr string, pathStyle bool) {
-	host = d.S3Endpoint
-	pathStyle = d.S3Endpoint != ""
+	scheme := "https"
+	host = strings.TrimSpace(d.S3Endpoint)
+	// Custom endpoint → path-style by default (MinIO, R2, B2, Wasabi, GCS XML API).
+	pathStyle = host != "" || d.S3ForcePathStyle
 	if host == "" {
+		// Virtual-hosted AWS default.
 		host = d.S3Bucket + ".s3.amazonaws.com"
-		pathStyle = false
+		if d.S3Region != "" && d.S3Region != "us-east-1" {
+			host = fmt.Sprintf("%s.s3.%s.amazonaws.com", d.S3Bucket, d.S3Region)
+		}
+		pathStyle = d.S3ForcePathStyle
 	}
-	host = strings.TrimPrefix(host, "https://")
-	host = strings.TrimPrefix(host, "http://")
+	if strings.HasPrefix(host, "http://") {
+		scheme = "http"
+		host = strings.TrimPrefix(host, "http://")
+	} else {
+		host = strings.TrimPrefix(host, "https://")
+	}
 	host = strings.TrimRight(host, "/")
 	if pathStyle {
-		urlStr = fmt.Sprintf("https://%s/%s", host, d.S3Bucket)
+		urlStr = fmt.Sprintf("%s://%s/%s", scheme, host, d.S3Bucket)
 	} else {
-		urlStr = fmt.Sprintf("https://%s", host)
+		urlStr = fmt.Sprintf("%s://%s", scheme, host)
 	}
 	return host, urlStr, pathStyle
 }
@@ -67,15 +77,11 @@ func putS3SingleStream(d config.Destination, localPath, key string) error {
 	}
 	defer f.Close()
 	st, _ := f.Stat()
-	// For signing we need payload hash — stream hash first for files under 64MB is OK via ReadAll alternative:
-	// use sized buffer read once into memory only if small; we already branch < 64MB.
 	body, err := io.ReadAll(io.LimitReader(f, 64<<20+1))
 	if err != nil {
 		return err
 	}
-	if int64(len(body)) != st.Size() && st.Size() <= 64<<20 {
-		// ok
-	}
+	_ = st
 
 	host, base, pathStyle := s3HostBucket(d)
 	var u string
@@ -162,7 +168,9 @@ func putS3Multipart(d config.Destination, localPath, key string, size int64) err
 
 	var parts []completePart
 	partNum := 1
+	var transferred int64
 	buf := make([]byte, s3PartSize)
+	reportProgress(0, size)
 	for {
 		n, rerr := io.ReadFull(f, buf)
 		if n > 0 {
@@ -174,6 +182,8 @@ func putS3Multipart(d config.Destination, localPath, key string, size int64) err
 			}
 			parts = append(parts, completePart{PartNumber: partNum, ETag: etag})
 			partNum++
+			transferred += int64(n)
+			reportProgress(transferred, size)
 		}
 		if rerr == io.EOF || rerr == io.ErrUnexpectedEOF {
 			break
@@ -211,7 +221,6 @@ func putS3Multipart(d config.Destination, localPath, key string, size int64) err
 		_ = abortMultipart(d, objURL, uploadID)
 		return fmt.Errorf("s3 complete multipart HTTP %d: %s", cresp.StatusCode, string(cb))
 	}
-	_ = size
 	return nil
 }
 
@@ -271,7 +280,6 @@ func signV4(req *http.Request, payload []byte, d config.Destination) error {
 	}
 	payloadHash := sha256Hex(payload)
 
-	// Ensure URL is absolute and Host set
 	if req.URL.Host == "" {
 		req.URL.Host = req.Host
 	}
@@ -288,7 +296,6 @@ func signV4(req *http.Request, payload []byte, d config.Destination) error {
 	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
 	req.Header.Set("Host", host)
 
-	// Build canonical query (sorted)
 	canonQuery := ""
 	if req.URL.RawQuery != "" {
 		values, _ := url.ParseQuery(req.URL.RawQuery)
