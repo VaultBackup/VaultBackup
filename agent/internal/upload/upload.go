@@ -14,8 +14,7 @@ import (
 	"github.com/vaultbackup/agent/internal/config"
 )
 
-// Put writes localPath to the configured destination. Returns remote key/path.
-// Data never passes through the control-plane Worker.
+// Put uploads localPath according to destination settings. Returns remote key/path.
 func Put(cfg config.Config, localPath string) (string, error) {
 	dest := cfg.Destination
 	switch strings.ToLower(dest.Mode) {
@@ -58,14 +57,22 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
+	st, _ := in.Stat()
+	var total int64
+	if st != nil {
+		total = st.Size()
+	}
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
+	reportProgress(0, total)
+	pr := newProgressReader(in, total)
+	if _, err := io.Copy(out, pr); err != nil {
 		return err
 	}
+	reportProgress(total, total)
 	return out.Close()
 }
 
