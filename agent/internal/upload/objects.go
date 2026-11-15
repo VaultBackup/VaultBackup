@@ -304,7 +304,7 @@ func listAzure(d config.Destination, prefix string) ([]Object, error) {
 		return nil, err
 	}
 	req.Header.Set("x-ms-version", "2020-10-02")
-	req.Header.Set("x-ms-date", time.Now().UTC().Format(http.TimeFormat))
+	req.Header.Set("x-ms-date", time.Now().UTC().Format(time.RFC1123))
 	if err := signAzureList(req, d.AzureAccount, d.AzureKey, d.AzureContainer); err != nil {
 		return nil, err
 	}
@@ -372,7 +372,7 @@ func getAzure(d config.Destination, key, localPath string) error {
 	}
 	req.Header.Set("x-ms-version", "2020-10-02")
 	req.Header.Set("x-ms-date", time.Now().UTC().Format(http.TimeFormat))
-	if err := signAzureSharedKey(req, d.AzureAccount, d.AzureKey, d.AzureContainer, key, 0); err != nil {
+	if err := signAzureSharedKey(req, d.AzureAccount, d.AzureKey, d.AzureContainer, key, 0, nil); err != nil {
 		return err
 	}
 	resp, err := httpx.UploadClient.Do(req)
@@ -401,7 +401,7 @@ func deleteAzure(d config.Destination, key string) error {
 	}
 	req.Header.Set("x-ms-version", "2020-10-02")
 	req.Header.Set("x-ms-date", time.Now().UTC().Format(http.TimeFormat))
-	if err := signAzureSharedKey(req, d.AzureAccount, d.AzureKey, d.AzureContainer, key, 0); err != nil {
+	if err := signAzureSharedKey(req, d.AzureAccount, d.AzureKey, d.AzureContainer, key, 0, nil); err != nil {
 		return err
 	}
 	resp, err := httpx.UploadClient.Do(req)
