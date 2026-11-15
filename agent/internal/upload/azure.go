@@ -94,10 +94,11 @@ func putAzureBlocks(d config.Destination, localPath, blobURL, key string, size i
 	var blockIDs []string
 	buf := make([]byte, azureBlockSize)
 	part := 0
+	var transferred int64
+	reportProgress(0, size)
 	for {
 		n, rerr := io.ReadFull(f, buf)
 		if n > 0 {
-			// Base64 block id (must be consistent length for Azure)
 			raw := fmt.Sprintf("%08d", part)
 			blockID := base64.StdEncoding.EncodeToString([]byte(raw))
 			if err := putAzureBlock(d, blobURL, key, blockID, buf[:n]); err != nil {
@@ -105,6 +106,8 @@ func putAzureBlocks(d config.Destination, localPath, blobURL, key string, size i
 			}
 			blockIDs = append(blockIDs, blockID)
 			part++
+			transferred += int64(n)
+			reportProgress(transferred, size)
 		}
 		if rerr == io.EOF || rerr == io.ErrUnexpectedEOF {
 			break
