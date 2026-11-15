@@ -25,19 +25,19 @@ func Modes() []Mode {
 			Label:     "S3 compatible",
 			Direct:    true,
 			Providers: []string{"AWS S3", "Cloudflare R2", "Backblaze B2", "Wasabi", "MinIO", "Google Cloud Storage (XML API)", "Any S3-compatible"},
-			Notes:     "SigV4. Custom endpoint uses path-style. Multipart for objects >= 64 MiB.",
+			Notes:     "SigV4. Custom endpoint uses path-style. Multipart for objects >= 64 MiB (8 MiB parts).",
 		},
 		{
 			ID:     "azure",
 			Label:  "Azure Blob",
 			Direct: true,
-			Notes:  "Shared Key auth. Optional custom endpoint for Azure-compatible stores.",
+			Notes:  "Shared Key auth. Block blob staging for objects >= 64 MiB (8 MiB blocks). Optional custom endpoint.",
 		},
 		{
 			ID:     "webdav",
 			Label:  "WebDAV / NAS",
 			Direct: true,
-			Notes:  "HTTP PUT with optional Basic auth. MKCOL used to ensure the collection exists.",
+			Notes:  "Single HTTP PUT with optional Basic auth (60m client timeout). Prefer S3/Azure for multi-GB. MKCOL ensures collection exists.",
 		},
 		{
 			ID:     "sftp",
