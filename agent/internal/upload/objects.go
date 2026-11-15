@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/sftp"
 	"github.com/vaultbackup/agent/internal/config"
 	"github.com/vaultbackup/agent/internal/httpx"
+	"github.com/vaultbackup/agent/internal/retention"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -81,7 +82,8 @@ func Delete(cfg config.Config, key string) error {
 	}
 }
 
-// ApplyRetention deletes oldest objects beyond keep count (direct storage only).
+// ApplyRetention deletes oldest *backup* objects beyond keep count (direct storage only).
+// Non-backup keys (agent.key, logs, unrelated bucket objects) are never deleted.
 func ApplyRetention(cfg config.Config, keep int) error {
 	if keep <= 0 {
 		return nil
@@ -90,11 +92,17 @@ func ApplyRetention(cfg config.Config, keep int) error {
 	if err != nil {
 		return err
 	}
-	if len(objs) <= keep {
+	filtered := make([]Object, 0, len(objs))
+	for _, o := range objs {
+		if retention.IsBackupArtifact(o.Key) {
+			filtered = append(filtered, o)
+		}
+	}
+	if len(filtered) <= keep {
 		return nil
 	}
-	for i := keep; i < len(objs); i++ {
-		_ = Delete(cfg, objs[i].Key)
+	for i := keep; i < len(filtered); i++ {
+		_ = Delete(cfg, filtered[i].Key)
 	}
 	return nil
 }
