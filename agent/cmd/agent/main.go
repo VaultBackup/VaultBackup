@@ -22,6 +22,7 @@ import (
 	"github.com/vaultbackup/agent/internal/schedule"
 	"github.com/vaultbackup/agent/internal/secure"
 	"github.com/vaultbackup/agent/internal/sysinfo"
+	"github.com/vaultbackup/agent/internal/update"
 	"github.com/vaultbackup/agent/internal/upload"
 	"github.com/vaultbackup/agent/internal/webui"
 )
@@ -249,6 +250,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		SizeBytes: res.SizeBytes, Path: remote, Message: "uploaded", Duration: dur.String(),
 	})
 	log.Printf("backup ok size=%d remote=%s in %s", res.SizeBytes, remote, dur)
+	notify.Success(cfg, "Backup OK", fmt.Sprintf("size=%d remote=%s in %s", res.SizeBytes, remote, dur.Round(time.Second)))
 	_ = license.PushEvent(cfg, map[string]any{
 		"event": "backup_finished", "ok": true, "code": errcode.OK, "type": bt,
 		"size": res.SizeBytes, "duration": dur.Seconds(), "remote": remote, "name": cfg.Name,
@@ -292,7 +294,16 @@ func statusLoop() {
 	for range t.C {
 		cfg := config.Get()
 		host := sysinfo.Snapshot()
-		_ = license.ReportStatus(cfg, map[string]any{"name": cfg.Name, "host": host, "version": version})
+		status := map[string]any{"name": cfg.Name, "host": host, "version": version}
+		server := cfg.License.ServerURL
+		if server == "" {
+			server = "https://backup.enadoctemp.workers.dev"
+		}
+		if latest, avail, err := update.Check(server, version); err == nil && avail {
+			status["updateAvailable"] = true
+			status["latestVersion"] = latest
+		}
+		_ = license.ReportStatus(cfg, status)
 	}
 }
 
