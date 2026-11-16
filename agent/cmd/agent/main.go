@@ -112,6 +112,7 @@ func runInteractive() error {
 	}
 
 	srv := webui.New(*webuiAddr, *webuiPass).WithTLS(*webuiTLSCert, *webuiTLSKey)
+	srv.Version = version
 	srv.OnRun = func() error { return runBackup("") }
 	log.Printf("Web UI listening on %s://%s", srv.Scheme(), *webuiAddr)
 	if strings.TrimSpace(*webuiPass) == "" {
@@ -239,6 +240,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		}
 	}
 
+	var progMu sync.Mutex
 	var lastPct int = -1
 	var lastProgAt time.Time
 	upload.SetProgress(func(transferred, total int64) {
@@ -246,11 +248,14 @@ func doBackup(cfg config.Config, typeOverride string) error {
 			return
 		}
 		pct := int(transferred * 100 / total)
+		progMu.Lock()
 		if pct/10 == lastPct/10 && time.Since(lastProgAt) < 15*time.Second && pct < 100 {
+			progMu.Unlock()
 			return
 		}
 		lastPct = pct
 		lastProgAt = time.Now()
+		progMu.Unlock()
 		log.Printf("upload progress %d%% (%d / %d bytes)", pct, transferred, total)
 		_ = license.PushEvent(cfg, map[string]any{
 			"event": "upload_progress", "name": cfg.Name, "type": bt,
