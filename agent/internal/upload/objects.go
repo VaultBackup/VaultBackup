@@ -101,6 +101,7 @@ func ApplyRetention(cfg config.Config, keep int) error {
 	if len(filtered) <= keep {
 		return nil
 	}
+	// List returns newest first.
 	for i := keep; i < len(filtered); i++ {
 		_ = Delete(cfg, filtered[i].Key)
 	}
@@ -424,16 +425,24 @@ func deleteAzure(d config.Destination, key string) error {
 	return nil
 }
 
+// --- webdav ---
+
 func listWebDAV(d config.Destination, prefix string) ([]Object, error) {
 	if d.WebDAVURL == "" {
 		return nil, fmt.Errorf("webdav_url required")
 	}
 	url := strings.TrimRight(d.WebDAVURL, "/") + "/"
-	req, err := http.NewRequest("PROPFIND", url, nil)
+	// Request size + lastmodified so retention can order by age.
+	bodyXML := `<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:"><d:prop>
+<d:displayname/><d:getcontentlength/><d:getlastmodified/><d:resourcetype/>
+</d:prop></d:propfind>`
+	req, err := http.NewRequest("PROPFIND", url, strings.NewReader(bodyXML))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Depth", "1")
+	req.Header.Set("Content-Type", "application/xml")
 	if d.WebDAVUser != "" {
 		req.SetBasicAuth(d.WebDAVUser, d.WebDAVPassword)
 	}
@@ -442,42 +451,103 @@ func listWebDAV(d config.Destination, prefix string) ([]Object, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("webdav propfind HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("webdav propfind HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
+	// Parse response by response blocks (namespace-agnostic tag scan).
 	var out []Object
 	rest := string(body)
+	lower := strings.ToLower(rest)
 	for {
-		low := strings.ToLower(rest)
-		i := strings.Index(low, "<d:href>")
-		if i < 0 {
-			i = strings.Index(low, "<href>")
+		ri := strings.Index(lower, "<d:response")
+		if ri < 0 {
+			ri = strings.Index(lower, "<response")
 		}
-		if i < 0 {
+		if ri < 0 {
 			break
 		}
-		gt := strings.Index(rest[i:], ">")
-		if gt < 0 {
+		endMarkers := []string{"</d:response>", "</response>"}
+		ej := -1
+		endLen := 0
+		for _, m := range endMarkers {
+			if k := strings.Index(lower[ri:], m); k >= 0 {
+				if ej < 0 || k < ej {
+					ej = k
+					endLen = len(m)
+				}
+			}
+		}
+		if ej < 0 {
 			break
 		}
-		rest = rest[i+gt+1:]
-		j := strings.Index(strings.ToLower(rest), "</")
-		if j < 0 {
-			break
+		block := rest[ri : ri+ej+endLen]
+		blockLower := lower[ri : ri+ej+endLen]
+		rest = rest[ri+ej+endLen:]
+		lower = lower[ri+ej+endLen:]
+
+		if strings.Contains(blockLower, "<d:collection") || strings.Contains(blockLower, "<collection") {
+			continue
 		}
-		href := strings.TrimSpace(rest[:j])
-		rest = rest[j:]
+		href := xmlTagAny(block, "href")
+		if href == "" {
+			continue
+		}
 		baseName := path.Base(strings.TrimRight(href, "/"))
-		if baseName == "" || baseName == "." || strings.HasSuffix(href, "/") {
+		if baseName == "" || baseName == "." {
 			continue
 		}
 		if prefix != "" && !strings.HasPrefix(baseName, prefix) {
 			continue
 		}
-		out = append(out, Object{Key: baseName})
+		var size int64
+		if sz := xmlTagAny(block, "getcontentlength"); sz != "" {
+			fmt.Sscanf(sz, "%d", &size)
+		}
+		var mod time.Time
+		if ms := xmlTagAny(block, "getlastmodified"); ms != "" {
+			for _, layout := range []string{time.RFC1123, time.RFC1123Z, time.RFC3339} {
+				if t, err := time.Parse(layout, ms); err == nil {
+					mod = t
+					break
+				}
+			}
+		}
+		out = append(out, Object{Key: baseName, Size: size, ModTime: mod})
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
 	return out, nil
+}
+
+// xmlTagAny finds the text of a tag ignoring optional namespace prefix (e.g. d:href or href).
+func xmlTagAny(s, local string) string {
+	low := strings.ToLower(s)
+	candidates := []string{"<" + local + ">", "<d:" + local + ">", "<D:" + local + ">"}
+	for _, open := range candidates {
+		i := strings.Index(low, strings.ToLower(open))
+		if i < 0 {
+			continue
+		}
+		gt := strings.Index(s[i:], ">")
+		if gt < 0 {
+			continue
+		}
+		start := i + gt + 1
+		closeLow := "</" + strings.ToLower(local)
+		restLow := low[start:]
+		j := strings.Index(restLow, closeLow)
+		if j < 0 {
+			j = strings.Index(restLow, "</d:"+strings.ToLower(local))
+			if j < 0 {
+				j = strings.Index(restLow, "</D:"+strings.ToLower(local))
+			}
+		}
+		if j < 0 {
+			continue
+		}
+		return strings.TrimSpace(s[start : start+j])
+	}
+	return ""
 }
 
 func getWebDAV(d config.Destination, key, localPath string) error {
@@ -495,7 +565,8 @@ func getWebDAV(d config.Destination, key, localPath string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("webdav get HTTP %d", resp.StatusCode)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("webdav get HTTP %d: %s", resp.StatusCode, string(b))
 	}
 	return writeResponseToFile(resp.Body, localPath)
 }
@@ -515,7 +586,8 @@ func deleteWebDAV(d config.Destination, key string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 && resp.StatusCode != 404 {
-		return fmt.Errorf("webdav delete HTTP %d", resp.StatusCode)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("webdav delete HTTP %d: %s", resp.StatusCode, string(b))
 	}
 	return nil
 }
