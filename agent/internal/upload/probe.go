@@ -224,15 +224,14 @@ func probeSFTP(d config.Destination) DestResult {
 	if err != nil {
 		return DestResult{OK: false, Status: "Failed", Detail: err.Error()}
 	}
-	insecure := d.SFTPInsecure
-	cb := hostKeyCallback(insecure)
-	if !insecure {
-		cb = ssh.InsecureIgnoreHostKey() //nolint:gosec
+	hkcb, err := hostKeyCallback(d.SFTPInsecure)
+	if err != nil {
+		return DestResult{OK: false, Status: "Failed", Detail: err.Error()}
 	}
 	cfg := &ssh.ClientConfig{
 		User:            d.SFTPUser,
 		Auth:            auth,
-		HostKeyCallback: cb,
+		HostKeyCallback: hkcb,
 		Timeout:         8 * time.Second,
 	}
 	start := time.Now()
@@ -258,8 +257,8 @@ func probeSFTP(d config.Destination) DestResult {
 		}
 	}
 	detail := "sftp connected"
-	if !insecure {
-		detail += " (probe used temporary host-key skip; set sftp_insecure=true for production if needed)"
+	if d.SFTPInsecure {
+		detail += " (sftp_insecure=true: host key not verified)"
 	}
 	return DestResult{OK: true, Status: "OK", LatencyMs: lat, Detail: detail}
 }
