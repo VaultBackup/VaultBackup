@@ -170,21 +170,19 @@ func (s *Server) handleTestDest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
-	data, err := staticAssets.ReadFile("assets/icon.ico")
-	if err != nil {
+	if len(faviconBytes) == 0 {
 		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "image/x-icon")
-	_, _ = w.Write(data)
+	_, _ = w.Write(faviconBytes)
 }
 
 func (s *Server) handleIconPNG(w http.ResponseWriter, r *http.Request) {
-	data, err := staticAssets.ReadFile("assets/icon.png")
-	if err != nil {
+	if len(iconPNGBytes) == 0 {
 		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "image/png")
-	_, _ = w.Write(data)
+	_, _ = w.Write(iconPNGBytes)
 }
