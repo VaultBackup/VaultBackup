@@ -1,0 +1,32 @@
+name: Restore webui.go
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, pathlib
+          b64 = (
+            'PLACEHOLDER'
+          )
+          data = base64.b64decode(b64)
+          pathlib.Path('agent/internal/webui/webui.go').write_bytes(data)
+          print(len(data), data[:60])
+          PY
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add agent/internal/webui/webui.go
+          if git diff --cached --quiet; then echo nochange; else
+            git commit -m "fix: restore full webui.go"
+            git push
+          fi
