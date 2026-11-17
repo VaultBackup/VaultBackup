@@ -2,7 +2,6 @@ package webui
 
 import (
 	"crypto/subtle"
-	"embed"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,9 +10,6 @@ import (
 	"sync"
 	"time"
 )
-
-//go:embed assets/icon.ico assets/icon.png assets/favicon-32.png
-var staticAssets embed.FS
 
 // Server is the local setup UI.
 type Server struct {
