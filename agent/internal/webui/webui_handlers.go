@@ -1,13 +1,9 @@
 package webui
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -18,30 +14,7 @@ import (
 	"github.com/vaultbackup/agent/internal/secure"
 	"github.com/vaultbackup/agent/internal/sysinfo"
 	"github.com/vaultbackup/agent/internal/update"
-	"github.com/vaultbackup/agent/internal/upload"
 )
-
-func newCSPNonce() string {
-	var b [18]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
-	}
-	return base64.RawURLEncoding.EncodeToString(b[:])
-}
-
-func applyCSPNonce(page, nonce string) string {
-	reTag := regexp.MustCompile(`(?i)<(script|style)(\s[^>]*)?>`)
-	return reTag.ReplaceAllStringFunc(page, func(open string) string {
-		lower := strings.ToLower(open)
-		if strings.Contains(lower, "nonce=") {
-			return open
-		}
-		if strings.HasSuffix(open, ">") {
-			return open[:len(open)-1] + " nonce=\"" + nonce + "\">"
-		}
-		return open
-	})
-}
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
