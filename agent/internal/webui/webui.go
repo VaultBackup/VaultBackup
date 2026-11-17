@@ -1,35 +1,21 @@
 package webui
+
 import (
-	"crypto/rand"
 	"crypto/subtle"
 	"embed"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
-	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
-	"github.com/vaultbackup/agent/internal/config"
-	"github.com/vaultbackup/agent/internal/crypto"
-	"github.com/vaultbackup/agent/internal/db"
-	"github.com/vaultbackup/agent/internal/health"
-	"github.com/vaultbackup/agent/internal/history"
-	"github.com/vaultbackup/agent/internal/license"
-	"github.com/vaultbackup/agent/internal/secure"
-	"github.com/vaultbackup/agent/internal/sysinfo"
-	"github.com/vaultbackup/agent/internal/update"
-	"github.com/vaultbackup/agent/internal/upload"
 )
 
 //go:embed assets/icon.ico assets/icon.png assets/favicon-32.png
 var staticAssets embed.FS
 
+// Server is the local setup UI.
 type Server struct {
 	Addr        string
 	Password    string
