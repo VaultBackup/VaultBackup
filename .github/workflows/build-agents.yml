@@ -46,7 +46,6 @@ jobs:
           set -euo pipefail
           if [ -z "${WINDOWS_CERT_PFX_BASE64:-}" ]; then echo "unsigned"; exit 0; fi
           sudo apt-get update -qq && sudo apt-get install -y -qq osslsigncode
-          # Normalize secret (strip whitespace/newlines from base64)
           echo "$WINDOWS_CERT_PFX_BASE64" | tr -d ' \n\r\t' | base64 -d > /tmp/codesign.pfx
           for exe in vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe; do
             osslsigncode sign -pkcs12 /tmp/codesign.pfx -pass "${WINDOWS_CERT_PASSWORD}" -n "VaultBackup Agent" -i "https://backup.enadoctemp.workers.dev" -t http://timestamp.digicert.com -in "$exe" -out "${exe}.signed"
@@ -86,21 +85,11 @@ jobs:
           git commit -m "chore(build): update agent binaries [skip ci]"
           for i in 1 2 3 4 5 6 8 10; do
             git fetch origin "$BRANCH"
-            if git push origin "HEAD:$BRANCH"; then
-              echo "Pushed binaries"
-              exit 0
-            fi
-            echo "Push rejected (attempt $i); rebasing with ours for binaries…"
+            if git push origin "HEAD:$BRANCH"; then echo "Pushed binaries"; exit 0; fi
+            echo "Push rejected (attempt $i); rebasing…"
             if ! git pull --rebase origin "$BRANCH"; then
-              git checkout --ours -- \
-                vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 \
-                vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 \
-                vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe \
-                SHA256SUMS 2>/dev/null || true
-              git add vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 \
-                      vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 \
-                      vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe \
-                      SHA256SUMS 2>/dev/null || true
+              git checkout --ours -- vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe SHA256SUMS 2>/dev/null || true
+              git add vaultbackup-agent-linux-amd64 vaultbackup-agent-linux-arm64 vaultbackup-agent-darwin-amd64 vaultbackup-agent-darwin-arm64 vaultbackup-agent-windows-amd64.exe vaultbackup-agent-windows-arm64.exe SHA256SUMS 2>/dev/null || true
               GIT_EDITOR=true git rebase --continue || git rebase --abort || true
             fi
             sleep $((i * 2))
@@ -148,8 +137,6 @@ jobs:
           set -euo pipefail
           CERT_PATH="$RUNNER_TEMP/certificate.p12"
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
-
-          # Normalize base64 (GitHub UI / paste often adds newlines)
           echo "$APPLE_CERTIFICATE_BASE64" | tr -d ' \n\r\t' | base64 -d > "$CERT_PATH"
           CERT_SIZE=$(wc -c < "$CERT_PATH" | tr -d ' ')
           echo "Decoded P12 size: ${CERT_SIZE} bytes"
@@ -157,42 +144,31 @@ jobs:
             echo "::error::P12 too small (${CERT_SIZE}b) — base64 secret is truncated or invalid"
             exit 1
           fi
-
-          # Strip accidental whitespace from password secret
           P12_PASS=$(printf '%s' "${APPLE_CERTIFICATE_PASSWORD:-}" | tr -d '\n\r')
           if [ -z "$P12_PASS" ]; then
             echo "::error::APPLE_CERTIFICATE_PASSWORD is empty"
             exit 1
           fi
-
           KC_PASS="${APPLE_KEYCHAIN_PASSWORD:-$(openssl rand -base64 24)}"
           security create-keychain -p "$KC_PASS" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KC_PASS" "$KEYCHAIN"
           security list-keychain -d user -s "$KEYCHAIN"
-
-          # Import full PKCS#12 (cert + private key). Do NOT use -t cert (drops the key).
-          # -A allows codesign without GUI prompt on CI.
           if ! security import "$CERT_PATH" -k "$KEYCHAIN" -P "$P12_PASS" -A -f pkcs12 -T /usr/bin/codesign -T /usr/bin/security; then
             echo "::error::security import failed (wrong password, corrupt P12, or not a PKCS#12)"
-            echo "Hint: openssl pkcs12 -legacy -in cert.p12 -passin pass:YOUR_PASS -nokeys -info"
             exit 1
           fi
-
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASS" "$KEYCHAIN" || true
           security find-identity -v -p codesigning "$KEYCHAIN" || true
           echo "imported=true" >> "$GITHUB_OUTPUT"
           echo "KEYCHAIN_PATH=$KEYCHAIN" >> "$GITHUB_ENV"
-          echo "KEYCHAIN_PASS=$KC_PASS" >> "$GITHUB_ENV"
           rm -f "$CERT_PATH"
-
       - name: Codesign Darwin binaries
         if: steps.apple.outputs.skip != 'true' && steps.import.outcome == 'success'
         env:
           APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
         run: |
           set -euo pipefail
-          # Prefer explicit identity; fall back to first available codesigning identity in keychain
           ID="${APPLE_IDENTITY:-}"
           if [ -z "$ID" ] || [ "$ID" = "Developer ID Application" ]; then
             ID=$(security find-identity -v -p codesigning "${KEYCHAIN_PATH:-}" 2>/dev/null | awk -F'"' '/Developer ID Application|Apple Development|Mac Developer/{print $2; exit}')
@@ -203,11 +179,9 @@ jobs:
             exit 1
           fi
           echo "Using identity: $ID"
-
           ENTITLEMENTS="agent/packaging/macos/entitlements.plist"
           for bin in dist/vaultbackup-agent-darwin-amd64 dist/vaultbackup-agent-darwin-arm64; do
             chmod +x "$bin"
-            # Prefer hardened runtime + timestamp; fall back without timestamp for self-signed certs
             if [ -f "$ENTITLEMENTS" ]; then
               if ! codesign --force --options runtime --timestamp --sign "$ID" --entitlements "$ENTITLEMENTS" "$bin" 2>/tmp/cs.err; then
                 echo "codesign with timestamp failed; retrying without timestamp (self-signed?)"
@@ -224,7 +198,6 @@ jobs:
             codesign --verify --verbose "$bin"
             echo "Signed $bin"
           done
-
       - name: Notarize (optional)
         if: steps.apple.outputs.skip != 'true' && steps.import.outcome == 'success'
         continue-on-error: true
@@ -245,7 +218,6 @@ jobs:
           xcrun notarytool submit dist/agent-darwin-arm64.zip --key "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" --wait
           xcrun notarytool submit dist/agent-darwin-amd64.zip --key "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" --wait
           echo "Notarization complete."
-
       - name: Commit signed macOS binaries
         if: steps.apple.outputs.skip != 'true' && steps.import.outcome == 'success'
         env:
@@ -270,7 +242,6 @@ jobs:
             sleep $((i * 2))
           done
           exit 1
-
       - name: Report macOS sign status
         if: always() && steps.apple.outputs.skip != 'true'
         run: |
@@ -278,7 +249,7 @@ jobs:
             echo "macOS certificate imported; codesign steps ran."
           else
             echo "::warning::macOS codesign skipped — certificate import failed."
-            echo "Check APPLE_CERTIFICATE_BASE64 (single-line base64) and APPLE_CERTIFICATE_PASSWORD."
+            echo "Check APPLE_CERTIFICATE_BASE64 and APPLE_CERTIFICATE_PASSWORD."
             echo "Pipeline remains green; Darwin binaries are unsigned."
           fi
 
@@ -329,7 +300,7 @@ jobs:
           $candle = Join-Path $env:WIX_BIN "candle.exe"
           $light  = Join-Path $env:WIX_BIN "light.exe"
           $ver = $env:VERSION
-          if ([string]::IsNullOrWhiteSpace($ver) or ($ver -notmatch '^\d+(\.\d+){1,3}$')) { $ver = "1.2.7" }
+          if ([string]::IsNullOrWhiteSpace($ver) -or ($ver -notmatch '^\d+(\.\d+){1,3}$')) { $ver = "1.2.7" }
           New-Item -ItemType Directory -Force -Path out | Out-Null
           if (-not (Test-Path "License.rtf")) { throw "License.rtf missing — EULA would be Lorem ipsum" }
           $lic = (Resolve-Path "License.rtf").Path
