@@ -61,7 +61,13 @@ func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
 	for _, o := range objs {
 		out = append(out, map[string]any{"key": o.Key, "size": o.Size, "modTime": o.ModTime.Format(time.RFC3339)})
 	}
-	writeJSON(w, map[string]any{"backups": out, "count": len(out)})
+	// Both keys for UI compatibility (objects preferred; backups legacy).
+	writeJSON(w, map[string]any{
+		"objects": out,
+		"backups": out,
+		"count":   len(out),
+		"mode":    cfg.Destination.Mode,
+	})
 }
 
 func (s *Server) handleBackupGet(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +88,7 @@ func (s *Server) handleBackupGet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "path": tmp})
+	writeJSON(w, map[string]any{"ok": true, "path": tmp, "local_path": tmp})
 }
 
 func (s *Server) handleBackupDelete(w http.ResponseWriter, r *http.Request) {
