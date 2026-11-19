@@ -28,6 +28,12 @@ textarea{min-height:4.5rem;font-family:ui-monospace,monospace;font-size:.82rem}
 .check{display:flex;align-items:center;gap:.5rem;margin:.5rem 0;font-size:.86rem}.check input{width:auto}
 .probe{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin:.5rem 0;padding:.75rem;border-radius:10px;border:1px solid var(--line);background:#0a121d}
 .probe .msg{font-size:.82rem;color:var(--muted);flex:1}
+.terms-box{max-height:180px;overflow:auto;margin:.35rem 0 .65rem;padding:.85rem .95rem;background:#0a121d;border:1px solid var(--line);border-radius:12px;color:#cbd5e1;font-size:.78rem;line-height:1.5;white-space:pre-wrap}
+.terms-box.collapsed{max-height:72px;opacity:.85}
+.terms-note{margin:.35rem 0 .6rem;padding:.65rem .8rem;border-radius:10px;font-size:.8rem;line-height:1.4;color:#86efac;background:rgba(22,163,74,.1);border:1px solid rgba(74,222,128,.28)}
+.terms-note.hidden{display:none!important}
+.terms-accept{display:flex;align-items:flex-start;gap:.55rem;color:#cbd5e1;font-size:.86rem;margin:.5rem 0}
+.terms-accept input{width:auto;margin-top:.2rem}
 pre.status{margin:0;white-space:pre-wrap;font-size:.76rem;color:var(--muted);max-height:200px;overflow:auto;background:#0a121d;border:1px solid var(--line);border-radius:10px;padding:.85rem}
 .stor-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.5rem;border:1px solid var(--line);border-radius:8px;margin-bottom:.4rem;font-size:.8rem}
 .toast{position:fixed;right:1rem;bottom:1rem;max-width:320px;background:rgba(15,23,42,.96);border:1px solid var(--line);border-radius:12px;padding:.85rem;font-size:.86rem}
@@ -50,14 +56,23 @@ pre.status{margin:0;white-space:pre-wrap;font-size:.76rem;color:var(--muted);max
   <div class="panel on" data-panel="1">
     <div class="card">
       <h2>Welcome</h2>
-      <p>Name this agent and set schedule. License server is fixed in the binary.</p>
+      <p>Name this agent, set schedule, and accept the license agreement.</p>
       <div class="field"><label for="name">Agent name</label><input id="name" placeholder="office-postgres-1"/></div>
       <div class="row">
         <div class="field"><label for="schedule">Schedule (cron)</label><input id="schedule" placeholder="0 3 * * *"/></div>
         <div class="field"><label for="retention">Retention (days)</label><input id="retention" type="number" min="1" value="14"/></div>
       </div>
       <div class="field"><label for="token">Agent token</label><input id="token" type="password" placeholder="Leave blank to keep"/></div>
-      <label class="check"><input type="checkbox" id="terms_accept"/> I accept the EULA</label>
+      <div class="field">
+        <label>End-User License Agreement</label>
+        <div class="terms-box" id="terms-text">Loading license agreement…</div>
+        <div id="terms-note" class="terms-note hidden"></div>
+        <label class="terms-accept" id="terms-accept-wrap">
+          <input type="checkbox" id="terms_accept"/>
+          <span>I have read and agree to the VaultBackup Agent EULA and Terms of Use.</span>
+        </label>
+        <div class="muted" style="font-size:.76rem;margin-top:.25rem">Required once per agent. You will be asked again only if the agreement is updated.</div>
+      </div>
       <div class="nav"><span></span><button type="button" class="btn btn-primary" id="next-1">Continue</button></div>
     </div>
   </div>

@@ -38,6 +38,10 @@ func containsMask(s string) bool {
 	return strings.Contains(s, "••••") || strings.Contains(s, "***")
 }
 
+func termsOK(cfg config.Config) bool {
+	return cfg.TermsAccepted && cfg.TermsVersion == TermsVersion
+}
+
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -73,7 +77,26 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cfg := config.Get()
+		// EULA: required the first time or when TermsVersion changes.
+		bodyAccepted, _ := body["terms_accepted"].(bool)
+		alreadyOK := termsOK(cfg)
+		if !bodyAccepted && !alreadyOK {
+			writeErr(w, 400, "terms must be accepted before saving configuration")
+			return
+		}
 		applyUIBody(&cfg, body)
+		if bodyAccepted {
+			cfg.TermsAccepted = true
+			if v, ok := body["terms_version"].(string); ok && strings.TrimSpace(v) != "" {
+				cfg.TermsVersion = strings.TrimSpace(v)
+			} else {
+				cfg.TermsVersion = TermsVersion
+			}
+		} else if alreadyOK {
+			// Preserve prior acceptance when the UI does not re-send the checkbox.
+			cfg.TermsAccepted = true
+			cfg.TermsVersion = TermsVersion
+		}
 		if err := config.Save(cfg); err != nil {
 			writeErr(w, 500, "save failed: "+err.Error())
 			return
@@ -97,6 +120,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"name": cfg.Name, "version": s.Version, "host": host, "database": db,
 		"complete": config.Complete(cfg), "licenseOk": ok && lic.OK,
 		"licenseReason": first(reason, lic.Reason), "lastError": lastErr,
+		"termsAccepted": termsOK(cfg), "termsVersion": TermsVersion,
 	}
 	server := cfg.License.ServerURL
 	if server == "" {
@@ -128,6 +152,11 @@ func (s *Server) handleTestLicense(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRunOnce(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeErr(w, 405, "method not allowed")
+		return
+	}
+	cfg := config.Get()
+	if !termsOK(cfg) {
+		writeErr(w, 403, "terms must be accepted before running a backup")
 		return
 	}
 	if s.OnRun == nil {
