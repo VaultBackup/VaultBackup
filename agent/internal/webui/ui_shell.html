@@ -1,1 +1,156 @@
-PLACEHOLDER_SHELL
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>VaultBackup Agent</title>
+<style nonce="__CSP_NONCE__">
+:root{--bg:#0a1018;--line:rgba(148,163,184,.14);--text:#f1f5f9;--muted:#94a3b8;--brand:#22c55e;--radius:14px}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:linear-gradient(180deg,#0c1520,#0a1018);color:var(--text);min-height:100vh}
+.shell{max-width:960px;margin:0 auto;padding:1.25rem}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:1rem;background:rgba(15,23,36,.9);border:1px solid var(--line);border-radius:16px;margin-bottom:1rem}
+h1{margin:0;font-size:1.15rem}.muted{color:var(--muted);font-size:.85rem}
+.badge{padding:.35rem .75rem;border-radius:999px;border:1px solid var(--line);font-size:.75rem;font-weight:700;color:var(--muted)}
+.rail{display:flex;gap:.35rem;padding:.35rem;margin-bottom:1rem;background:rgba(12,18,30,.8);border:1px solid var(--line);border-radius:999px;flex-wrap:wrap}
+.step{flex:1;min-width:100px;border:0;background:transparent;color:var(--muted);border-radius:999px;padding:.55rem;font-weight:700;cursor:pointer}
+.step.on{background:rgba(34,197,94,.12);color:#bbf7d0}
+.card{background:rgba(17,26,38,.98);border:1px solid var(--line);border-radius:var(--radius);padding:1.15rem;margin-bottom:1rem}
+.card h2{margin:0 0 .35rem;font-size:1.05rem}.card p{margin:0 0 .85rem;color:var(--muted);font-size:.85rem}
+label{display:block;font-size:.78rem;color:#cbd5e1;margin:0 0 .3rem}
+.field{margin-bottom:.75rem}.row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+@media(max-width:700px){.row{grid-template-columns:1fr}}
+input,select,textarea{width:100%;background:#0a121d;border:1px solid var(--line);border-radius:10px;color:#fff;padding:.65rem;font-size:.9rem}
+textarea{min-height:4.5rem;font-family:ui-monospace,monospace;font-size:.82rem}
+.btn{border:0;border-radius:10px;padding:.65rem 1rem;font-weight:700;cursor:pointer}
+.btn-primary{background:#22c55e;color:#fff}.btn-ghost{background:transparent;border:1px solid var(--line);color:#cbd5e1}
+.actions,.nav{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}.nav{justify-content:space-between}
+.panel{display:none}.panel.on{display:block}.hidden{display:none!important}
+.check{display:flex;align-items:center;gap:.5rem;margin:.5rem 0;font-size:.86rem}.check input{width:auto}
+.probe{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin:.5rem 0;padding:.75rem;border-radius:10px;border:1px solid var(--line);background:#0a121d}
+.probe .msg{font-size:.82rem;color:var(--muted);flex:1}
+pre.status{margin:0;white-space:pre-wrap;font-size:.76rem;color:var(--muted);max-height:200px;overflow:auto;background:#0a121d;border:1px solid var(--line);border-radius:10px;padding:.85rem}
+.stor-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.5rem;border:1px solid var(--line);border-radius:8px;margin-bottom:.4rem;font-size:.8rem}
+.toast{position:fixed;right:1rem;bottom:1rem;max-width:320px;background:rgba(15,23,42,.96);border:1px solid var(--line);border-radius:12px;padding:.85rem;font-size:.86rem}
+.toast.hidden{display:none!important}.toast.ok{border-color:rgba(34,197,94,.45)}.toast.bad{border-color:rgba(248,113,113,.45)}
+.foot{text-align:center;color:var(--muted);font-size:.75rem;margin-top:1rem}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div><h1>VaultBackup Agent</h1><div class="muted">Private database backups to storage you control</div></div>
+    <div id="status-pill" class="badge">Starting…</div>
+  </header>
+  <nav class="rail">
+    <button type="button" class="step on" data-step="1">1 · Welcome</button>
+    <button type="button" class="step" data-step="2">2 · Database</button>
+    <button type="button" class="step" data-step="3">3 · Destination</button>
+    <button type="button" class="step" data-step="4">4 · Review</button>
+  </nav>
+  <div class="panel on" data-panel="1">
+    <div class="card">
+      <h2>Welcome</h2>
+      <p>Name this agent and set schedule. License server is fixed in the binary.</p>
+      <div class="field"><label for="name">Agent name</label><input id="name" placeholder="office-postgres-1"/></div>
+      <div class="row">
+        <div class="field"><label for="schedule">Schedule (cron)</label><input id="schedule" placeholder="0 3 * * *"/></div>
+        <div class="field"><label for="retention">Retention (days)</label><input id="retention" type="number" min="1" value="14"/></div>
+      </div>
+      <div class="field"><label for="token">Agent token</label><input id="token" type="password" placeholder="Leave blank to keep"/></div>
+      <label class="check"><input type="checkbox" id="terms_accept"/> I accept the EULA</label>
+      <div class="nav"><span></span><button type="button" class="btn btn-primary" id="next-1">Continue</button></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="2">
+    <div class="card">
+      <h2>Database</h2>
+      <p>Point this agent at a database reachable from this machine.</p>
+      <div class="row">
+        <div class="field"><label for="db_type">Engine</label>
+          <select id="db_type">
+            <option value="postgres">PostgreSQL</option>
+            <option value="mysql">MySQL / MariaDB</option>
+            <option value="mssql">SQL Server</option>
+            <option value="mongodb">MongoDB</option>
+            <option value="redis">Redis</option>
+            <option value="sqlite">SQLite</option>
+            <option value="files">Files</option>
+            <option value="command">Custom command</option>
+          </select>
+        </div>
+        <div class="field"><label for="backup_type">Backup type</label>
+          <select id="backup_type"><option value="full">Full</option><option value="schema">Schema only</option></select>
+        </div>
+      </div>
+      <div class="field"><label for="db_uri">Connection URI</label><textarea id="db_uri" placeholder="postgres://user:pass@127.0.0.1:5432/db"></textarea></div>
+      <div class="probe"><div class="msg" id="db-probe-msg">Test the connection before continuing.</div><button type="button" class="btn btn-ghost" id="btn-test-db">Test connection</button></div>
+      <div class="nav"><button type="button" class="btn btn-ghost" id="back-2">Back</button><button type="button" class="btn btn-primary" id="next-2">Continue</button></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="3">
+    <div class="card">
+      <h2>Destination</h2>
+      <p>Backups write directly to your storage.</p>
+      <div class="field"><label for="dest_mode">Storage type</label>
+        <select id="dest_mode">
+          <option value="local">Local folder</option>
+          <option value="s3">S3 compatible</option>
+          <option value="azure">Azure Blob</option>
+          <option value="webdav">WebDAV</option>
+          <option value="sftp">SFTP</option>
+        </select>
+      </div>
+      <div id="dest-local"><div class="field"><label for="local_dir">Folder</label><input id="local_dir" placeholder="/var/lib/vaultbackup/backups"/></div></div>
+      <div id="dest-s3" class="hidden">
+        <div class="row"><div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint"/></div><div class="field"><label for="s3_region">Region</label><input id="s3_region"/></div></div>
+        <div class="row"><div class="field"><label for="s3_bucket">Bucket</label><input id="s3_bucket"/></div><div class="field"><label for="s3_prefix">Prefix</label><input id="s3_prefix"/></div></div>
+        <div class="row"><div class="field"><label for="s3_access_key">Access key</label><input id="s3_access_key"/></div><div class="field"><label for="s3_secret_key">Secret key</label><input id="s3_secret_key" type="password"/></div></div>
+      </div>
+      <div id="dest-azure" class="hidden">
+        <div class="row"><div class="field"><label for="azure_account">Account</label><input id="azure_account"/></div><div class="field"><label for="azure_container">Container</label><input id="azure_container"/></div></div>
+        <div class="field"><label for="azure_key">Key</label><input id="azure_key" type="password"/></div>
+        <div class="field"><label for="azure_prefix">Prefix</label><input id="azure_prefix"/></div>
+      </div>
+      <div id="dest-webdav" class="hidden">
+        <div class="field"><label for="webdav_url">URL</label><input id="webdav_url"/></div>
+        <div class="row"><div class="field"><label for="webdav_user">User</label><input id="webdav_user"/></div><div class="field"><label for="webdav_password">Password</label><input id="webdav_password" type="password"/></div></div>
+      </div>
+      <div id="dest-sftp" class="hidden">
+        <div class="row"><div class="field"><label for="sftp_host">Host</label><input id="sftp_host"/></div><div class="field"><label for="sftp_user">User</label><input id="sftp_user"/></div></div>
+        <div class="field"><label for="sftp_path">Path</label><input id="sftp_path" placeholder="/backups"/></div>
+        <div class="row"><div class="field"><label for="sftp_password">Password</label><input id="sftp_password" type="password"/></div><div class="field"><label for="sftp_key_file">Key file</label><input id="sftp_key_file"/></div></div>
+        <label class="check"><input type="checkbox" id="sftp_insecure"/> Skip host-key check (sftp_insecure — lab only)</label>
+      </div>
+      <div class="probe"><div class="msg" id="dest-probe-msg">Test the destination before saving.</div><button type="button" class="btn btn-ghost" id="btn-test-dest">Test connection</button></div>
+      <label class="check"><input type="checkbox" id="encrypt" checked/> Encrypt backups (AES)</label>
+      <div class="nav"><button type="button" class="btn btn-ghost" id="back-3">Back</button><button type="button" class="btn btn-primary" id="next-3">Continue</button></div>
+    </div>
+  </div>
+  <div class="panel" data-panel="4">
+    <div class="card">
+      <h2>Review and go live</h2>
+      <p>Save configuration, check license, or run a one-off backup.</p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="btn-save">Save configuration</button>
+        <button type="button" class="btn btn-ghost" id="btn-license">Check license</button>
+        <button type="button" class="btn btn-ghost" id="btn-run">Run backup once</button>
+      </div>
+      <div class="nav"><button type="button" class="btn btn-ghost" id="back-4">Back</button><span></span></div>
+    </div>
+    <div class="card"><h2>Live status</h2><pre id="status" class="status">—</pre></div>
+    <div class="card"><h2>Recent history</h2><div id="history" class="muted">No history yet.</div></div>
+    <div class="card">
+      <h2>Stored backups</h2>
+      <p class="muted">List / restore / delete objects on your destination.</p>
+      <div class="actions"><button type="button" class="btn btn-ghost" id="btn-refresh-storage">Refresh list</button></div>
+      <div id="storage-list" class="muted" style="margin-top:.75rem">No objects listed yet.</div>
+    </div>
+  </div>
+  <div class="foot">VaultBackup Agent · backups stay on your storage</div>
+  <div id="toast" class="toast hidden"></div>
+</div>
+<script nonce="__CSP_NONCE__">
+__APP_JS__
+</script>
+</body>
+</html>
