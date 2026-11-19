@@ -139,6 +139,21 @@ func firstEnv(keys ...string) string {
 }
 
 func doBackup(cfg config.Config, typeOverride string) error {
+	// EULA: block all backup paths (UI, schedule, -once) until current terms accepted.
+	if !cfg.TermsAccepted || cfg.TermsVersion != webui.TermsVersion {
+		msg := "backup blocked: terms must be accepted (open Web UI and accept the EULA)"
+		if cfg.TermsAccepted && cfg.TermsVersion != "" && cfg.TermsVersion != webui.TermsVersion {
+			msg = "backup blocked: EULA updated — re-accept terms in the Web UI (version " + webui.TermsVersion + ")"
+		}
+		log.Print(msg)
+		notify.Failure(cfg, "Terms required", msg)
+		_ = license.PushEvent(cfg, map[string]any{
+			"event": "backup_finished", "ok": false, "code": errcode.Unknown,
+			"error": msg, "name": cfg.Name,
+		})
+		return fmt.Errorf("%s", msg)
+	}
+
 	ok, reason := license.Allowed()
 	if !ok {
 		if st, err := license.Check(cfg); err == nil && st.Allowed {
