@@ -35,12 +35,30 @@ Base URL: https://backup.enadoctemp.workers.dev
 - UI never echoes raw secrets; blank password/token on save keeps existing values  
 - Retention policies do **not** delete `agent.key`, logs, or history  
 
+## CLI flags (summary)
+
+Full table and examples: **[RUN.md](../RUN.md)**.
+
+| Flag | Role |
+|------|------|
+| `-config` | Config path (default `config.yaml`) |
+| `-webui` | UI listen address (default `127.0.0.1:8787`) |
+| `-webui-password` | Optional UI basic auth (`WEBUI_PASSWORD`) |
+| `-webui-tls-cert` / `-webui-tls-key` | HTTPS for the UI (env variants supported) |
+| `-no-webui` | Scheduler only, no UI |
+| `-once` | One backup then exit |
+| `-type` | Override `full` / `schema` for this run |
+| `-restore` / `-restore-out` | Decrypt a local file or destination object |
+| `-self-update` | Install latest binary from the license server |
+
+Backups (UI, schedule, and `-once`) require **EULA accepted** for the current terms version and a valid license.
+
 ## Web UI features
 
 - Guided setup with mandatory DB + destination probes  
 - Live status, rich history  
 - **Stored backups:** list destination objects, restore (decrypt), delete  
-- Flags: `-webui`, `-webui-password`, `-no-webui` (see [RUN.md](../RUN.md))  
+- EULA text from `/api/terms`; re-accept only when terms version changes  
 
 ## License
 
