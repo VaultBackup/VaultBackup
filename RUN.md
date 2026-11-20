@@ -35,26 +35,70 @@ License server URL is built in (`https://backup.enadoctemp.workers.dev`).
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `-config` / `--config` | `config.yaml` | Config path |
-| `-webui` / `--webui` | `127.0.0.1:8787` | Web UI listen address |
-| `-webui-password` | | Optional UI password (or `WEBUI_PASSWORD`) |
-| `-no-webui` / `--no-webui` | false | Disable Web UI |
-| `-once` / `--once` | false | One backup then exit (license is checked on cold start) |
-| `-type` | | Override backup type for this run (`full` / `schema`) |
-| `-restore` | | Path or storage key of a backup to restore |
-| `-restore-out` | | Output path for decrypted restore |
+| `-config` | `config.yaml` | Path to agent config (sealed JSON envelope after first save) |
+| `-webui` | `127.0.0.1:8787` | Web UI listen address (`host:port`). Empty + `-no-webui` disables UI |
+| `-webui-password` | *(empty)* | Optional HTTP basic-auth password for the UI. Env: `WEBUI_PASSWORD` |
+| `-webui-tls-cert` | *(empty)* | PEM certificate path for HTTPS Web UI. Env: `WEBUI_TLS_CERT` or `VAULTBACKUP_WEBUI_TLS_CERT` |
+| `-webui-tls-key` | *(empty)* | PEM private key path for HTTPS Web UI. Env: `WEBUI_TLS_KEY` or `VAULTBACKUP_WEBUI_TLS_KEY` |
+| `-no-webui` | `false` | Disable the Web UI (scheduler + license loops still run) |
+| `-once` | `false` | Run **one** backup then exit (still requires EULA accepted + valid license) |
+| `-type` | *(empty)* | Override backup type for this run only (`full` or `schema`) |
+| `-restore` | *(empty)* | Local path **or** destination object key of an encrypted backup to decrypt |
+| `-restore-out` | *(empty)* | Output path for decrypted data (default: `<source>.decrypted`) |
+| `-self-update` | `false` | Download and install the latest agent binary from the license server, then exit |
 
-Staging only: `VAULTBACKUP_SERVER_URL=https://...`
+Go’s `flag` package accepts a single leading dash (`-webui`). Double-dash forms may work on some wrappers; prefer single-dash as shown.
 
-### Example restore (CLI)
+### Environment variables
+
+| Variable | Used for |
+|----------|----------|
+| `WEBUI_PASSWORD` | Default for `-webui-password` if the flag is omitted |
+| `WEBUI_TLS_CERT` / `VAULTBACKUP_WEBUI_TLS_CERT` | Default for `-webui-tls-cert` |
+| `WEBUI_TLS_KEY` / `VAULTBACKUP_WEBUI_TLS_KEY` | Default for `-webui-tls-key` |
+| `VAULTBACKUP_SERVER_URL` | Staging only — override license server (production binaries ignore this) |
+
+### Example: one-shot backup
+
+```bash
+./vaultbackup-agent -config /etc/vaultbackup/config.yaml -once
+# optional type override:
+./vaultbackup-agent -config /etc/vaultbackup/config.yaml -once -type full
+```
+
+### Example: restore (CLI)
 
 ```bash
 # Local encrypted file
 ./vaultbackup-agent -config /etc/vaultbackup/config.yaml \
-  -restore /var/lib/vaultbackup/backups/backup.sql.gz.enc \
+  -restore /var/lib/vaultbackup/backups/job.sql.gz.vbenc \
+  -restore-out /tmp/restored.sql.gz
+
+# Object key on the configured destination (downloaded, then decrypted)
+./vaultbackup-agent -config /etc/vaultbackup/config.yaml \
+  -restore backups/2026-11-19/job.sql.gz.vbenc \
   -restore-out /tmp/restored.sql.gz
 
 # Or use the Web UI: Review → Stored backups → Restore
+```
+
+### Example: HTTPS Web UI
+
+```bash
+./vaultbackup-agent \
+  -webui 0.0.0.0:8787 \
+  -webui-password "$WEBUI_PASSWORD" \
+  -webui-tls-cert /etc/vaultbackup/tls/cert.pem \
+  -webui-tls-key /etc/vaultbackup/tls/key.pem
+```
+
+Bind on LAN only with a password (and preferably TLS). Default bind is localhost.
+
+### Example: self-update
+
+```bash
+./vaultbackup-agent -config /etc/vaultbackup/config.yaml -self-update
+# Then restart the service / process so the new binary is loaded
 ```
 
 ## Service install (production)
@@ -76,16 +120,17 @@ msiexec /i vaultbackup-agent-windows-amd64.msi
 
 Post-install: open UI → complete tests → Save → Check license → confirm service is running.
 
-## License / offline / device bind
+## License / offline / device bind / EULA
 
 - Agent must check in at least every **72 hours**. After grace expires, scheduled backups are blocked until license OK again.
 - Each token binds to **one device fingerprint** on first success. Moving machines: console → agent → **Unbind**, or create a new token.
-- `-once` works without a prior Web UI session (license is checked on cold start).
+- **EULA:** first-time accept in the Web UI (or re-accept when terms version changes). Until accepted for the current terms version, **UI run-once, schedule, and `-once` are blocked**.
+- `-once` works without a prior interactive session only if config already has terms accepted + a valid license path.
 
 ## Security notes
 
 - Default Web UI is **localhost only**
-- LAN bind should use `--webui-password`
+- LAN bind should use `-webui-password` (and ideally `-webui-tls-cert` / `-webui-tls-key`)
 - **Config secrets are sealed at rest** (AES-256-GCM + `agent.key`) — protect both files
 - Optional AES-256-GCM encryption of backup files before upload to your storage
 - Use absolute paths for `work_dir`, `log_file`, and `key_file`
