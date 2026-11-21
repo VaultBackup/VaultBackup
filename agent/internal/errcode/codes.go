@@ -9,6 +9,7 @@ import (
 const (
 	OK              = "OK"
 	LicenseBlocked  = "LICENSE_BLOCKED"
+	TermsRequired   = "TERMS_REQUIRED"
 	DiskFull        = "DISK_FULL"
 	DBUnreachable   = "DB_UNREACHABLE"
 	DBDumpFailed    = "DB_DUMP_FAILED"
@@ -38,8 +39,11 @@ func ClassifyText(msg string) string {
 	switch {
 	case strings.Contains(s, "backup already running"):
 		return AlreadyRunning
+	case strings.Contains(s, "terms must be accepted") || strings.Contains(s, "eula updated") ||
+		strings.Contains(s, "backup blocked: terms") || strings.Contains(s, "re-accept terms"):
+		return TermsRequired
 	case strings.Contains(s, "license") || strings.Contains(s, "token_bound") ||
-		strings.Contains(s, "token invalid") || strings.Contains(s, "not allowed") ||
+		strings.Contains(s, "token invalid") ||
 		strings.Contains(s, "backup blocked: license"):
 		return LicenseBlocked
 	case strings.Contains(s, "insufficient free disk") || strings.Contains(s, "no space left") ||
