@@ -23,7 +23,7 @@ This page is for **end users and operators** who run the desktop agent.
 - [ ] Token created and copied once from **Desktop Agents**
 - [ ] Agent installed (Windows MSI recommended; Linux/macOS binary or service script)
 - [ ] UI open at http://127.0.0.1:8787
-- [ ] EULA accepted (first time only)
+- [ ] EULA accepted (first time only; re-accept if terms version changes)
 - [ ] Database **Test connection** green
 - [ ] Destination **Test connection** green
 - [ ] **Save configuration**
@@ -50,7 +50,7 @@ Recent agents attach a stable **`code`** on failed (and successful) runs. Check 
 | `DEST_PROBE_FAILED` | Destination test failed | Fix storage settings before Save |
 | `ALREADY_RUNNING` | Another backup is in progress | Wait for it to finish |
 | `CONFIG_INVALID` | Bad config / URI | Review wizard fields |
-| `UNKNOWN` | Unclassified error | Use full error text + logs |
+| `UNKNOWN` | Unclassified error (includes terms-not-accepted on older messaging) | Use full error text + logs |
 
 ---
 
@@ -58,12 +58,23 @@ Recent agents attach a stable **`code`** on failed (and successful) runs. Check 
 
 ### Cannot save configuration
 
-Save is blocked until **both** tests pass:
+Save is blocked until:
 
-1. Database step → **Test connection**
-2. Destination step → **Test connection**
+1. **EULA accepted** on Welcome (checkbox) for the current terms version
+2. Database step → **Test connection** green
+3. Destination step → **Test connection** green
 
-On Review, use **Test database** / **Test destination** again if needed.
+If the server returns `terms must be accepted before saving configuration`, open step 1, read the agreement, check **I agree**, then save again.
+
+### Backup blocked: terms / EULA
+
+Scheduled runs, **Run backup once**, and CLI `-once` all require terms accepted for the **current** EULA version.
+
+| Symptom | What to do |
+|---------|------------|
+| `terms must be accepted…` on save or run | Welcome → accept EULA → Save |
+| `EULA updated — re-accept…` | Terms version changed; open UI, review text, accept again, Save |
+| Schedule silent fail in log | Same as above; check agent log for `backup blocked: terms` |
 
 ### License errors
 
@@ -95,6 +106,7 @@ On Review, use **Test database** / **Test destination** again if needed.
 - **Local:** path must exist or be creatable; service account needs write permission.
 - **S3-compatible:** endpoint, region, bucket, keys; for R2 use region `auto` and the account R2 endpoint.
 - **Azure / WebDAV / SFTP:** credentials and network reachability from the agent host.
+- **SFTP host-key:** lab only — enable **Skip host-key check** (`sftp_insecure`) after understanding the risk.
 
 ### Restore and delete
 
@@ -109,6 +121,20 @@ On Review, use **Test database** / **Test destination** again if needed.
 ```
 
 Restore writes under the agent work directory when using the UI (decrypted when encryption is enabled).
+
+### CLI flags quick reference
+
+Full table: [RUN.md](../RUN.md). Common ones:
+
+| Flag | Use |
+|------|-----|
+| `-config` | Config path |
+| `-webui` / `-webui-password` | UI address / basic auth |
+| `-webui-tls-cert` / `-webui-tls-key` | HTTPS UI |
+| `-once` / `-type` | One backup (optional type override) |
+| `-restore` / `-restore-out` | Decrypt backup |
+| `-self-update` | Install latest binary |
+| `-no-webui` | Scheduler only |
 
 ### Windows MSI / service
 
