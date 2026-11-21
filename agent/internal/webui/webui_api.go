@@ -3,18 +3,20 @@ package webui
 import (
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/vaultbackup/agent/internal/config"
+	"github.com/vaultbackup/agent/internal/db"
 	"github.com/vaultbackup/agent/internal/health"
 	"github.com/vaultbackup/agent/internal/upload"
 )
 
 func (s *Server) handleTools(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Get()
-	db := health.ProbeDB(cfg)
-	writeJSON(w, map[string]any{"tools": db.Tools, "detail": db.Detail})
+	dbProbe := health.ProbeDB(cfg)
+	writeJSON(w, map[string]any{"tools": dbProbe.Tools, "detail": dbProbe.Detail})
 }
 
 func (s *Server) handleTestDB(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +49,16 @@ func (s *Server) handleTerms(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"ok": true})
+	writeJSON(w, map[string]any{
+		"ok":         true,
+		"os":         runtime.GOOS,
+		"arch":       runtime.GOARCH,
+		"version":    s.Version,
+		"engines":    db.Capabilities(),
+		"storage":    upload.Modes(),
+		"data_plane": "direct", // agent → storage only; Worker is license-only
+		"terms":      TermsVersion,
+	})
 }
 
 func (s *Server) handleBackups(w http.ResponseWriter, r *http.Request) {
