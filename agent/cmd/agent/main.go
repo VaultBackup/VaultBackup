@@ -147,8 +147,9 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		}
 		log.Print(msg)
 		notify.Failure(cfg, "Terms required", msg)
+		code := errcode.TermsRequired
 		_ = license.PushEvent(cfg, map[string]any{
-			"event": "backup_finished", "ok": false, "code": errcode.Unknown,
+			"event": "backup_finished", "ok": false, "code": code,
 			"error": msg, "name": cfg.Name,
 		})
 		return fmt.Errorf("%s", msg)
