@@ -41,6 +41,7 @@ Recent agents attach a stable **`code`** on failed (and successful) runs. Check 
 |------|---------|------------|
 | `OK` | Backup finished successfully | — |
 | `LICENSE_BLOCKED` | Token missing, invalid, or bound to another device | New token or **Unbind device** in console |
+| `TERMS_REQUIRED` | EULA not accepted, or terms version changed | Welcome → accept EULA → **Save** |
 | `DISK_FULL` | Work directory has under ~512 MB free | Free disk on the agent host |
 | `DB_UNREACHABLE` | Cannot connect / ping the database | Host, port, firewall, prefer `127.0.0.1` |
 | `DB_DUMP_FAILED` | Dump failed after connect | Check history detail; try native tools for large DBs |
@@ -50,7 +51,7 @@ Recent agents attach a stable **`code`** on failed (and successful) runs. Check 
 | `DEST_PROBE_FAILED` | Destination test failed | Fix storage settings before Save |
 | `ALREADY_RUNNING` | Another backup is in progress | Wait for it to finish |
 | `CONFIG_INVALID` | Bad config / URI | Review wizard fields |
-| `UNKNOWN` | Unclassified error (includes terms-not-accepted on older messaging) | Use full error text + logs |
+| `UNKNOWN` | Unclassified error | Use full error text + logs |
 
 ---
 
@@ -66,15 +67,15 @@ Save is blocked until:
 
 If the server returns `terms must be accepted before saving configuration`, open step 1, read the agreement, check **I agree**, then save again.
 
-### Backup blocked: terms / EULA
+### Backup blocked: terms / EULA (`TERMS_REQUIRED`)
 
-Scheduled runs, **Run backup once**, and CLI `-once` all require terms accepted for the **current** EULA version.
+Scheduled runs, **Run backup once**, and CLI `-once` all require terms accepted for the **current** EULA version. Events report code **`TERMS_REQUIRED`**.
 
 | Symptom | What to do |
 |---------|------------|
 | `terms must be accepted…` on save or run | Welcome → accept EULA → Save |
 | `EULA updated — re-accept…` | Terms version changed; open UI, review text, accept again, Save |
-| Schedule silent fail in log | Same as above; check agent log for `backup blocked: terms` |
+| Schedule fail in log / events | Same; look for `TERMS_REQUIRED` or `backup blocked: terms` |
 
 ### License errors
 
