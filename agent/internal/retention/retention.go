@@ -1,6 +1,7 @@
 package retention
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -70,8 +71,14 @@ func (p Policy) Apply(dir string) error {
 	if keep <= 0 {
 		return nil
 	}
+	var failures []string
 	for i := keep; i < len(files); i++ {
-		_ = os.Remove(files[i].path)
+		if err := os.Remove(files[i].path); err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", files[i].path, err))
+		}
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("retention could not remove %d backup file(s): %s", len(failures), strings.Join(failures, "; "))
 	}
 	return nil
 }
