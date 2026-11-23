@@ -112,3 +112,11 @@ GOOS=darwin  GOARCH=arm64 go build -o ../vaultbackup-agent-darwin-arm64 ./cmd/ag
 ```
 
 See: [INSTALL.md](INSTALL.md) · [RUN.md](RUN.md) · [docs/README.md](docs/README.md) · [docs/SUPPORT.md](docs/SUPPORT.md)
+
+
+### Backup completeness and restore guarantees
+
+- Incremental and differential modes are rejected until the agent has durable chain metadata, chain-aware retention, and chain restore tests. Configure full backups instead.
+- The built-in PostgreSQL and MySQL dump paths are logical table/data exporters, not complete substitutes for `pg_dump` or `mysqldump`. They do not guarantee preservation of every engine object, permission, extension, trigger, routine, sequence, or database-specific feature. For production recovery requirements, enable `PreferNativeTools` and install the matching vendor CLI, then validate a restore on the target engine.
+- A successful upload read-back checksum proves that the remote object matches the local bytes. It does not prove that the dump is transactionally consistent or restorable. Maintain scheduled restore drills and test application-level data after restore.
+- The current automated restore smoke path decrypts an artifact; it is not yet an engine-by-engine restore certification.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -201,18 +202,20 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 func originAllowed(origin, host string) bool {
 	origin = strings.TrimSpace(origin)
-	if origin == "null" {
-		return true
+	if origin == "" || origin == "null" || host == "" {
+		return false
 	}
-	if strings.HasSuffix(origin, "://"+host) || strings.HasSuffix(origin, "://"+host+"/") {
-		return true
+	u, err := url.Parse(origin)
+	if err != nil || u.Opaque != "" || u.User != nil || u.Host == "" {
+		return false
 	}
-	lo := strings.ToLower(origin)
-	if strings.Contains(lo, "://127.0.0.1") || strings.Contains(lo, "://localhost") || strings.Contains(lo, "://[::1]") {
-		h := strings.ToLower(host)
-		if strings.HasPrefix(h, "127.0.0.1") || strings.HasPrefix(h, "localhost") || strings.HasPrefix(h, "[::1]") || strings.HasPrefix(h, "::1") {
-			return true
-		}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
 	}
-	return false
+	if u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return false
+	}
+	// Require an exact authority match. In particular, do not treat every
+	// localhost/loopback origin as trusted when the request uses another host.
+	return strings.EqualFold(u.Host, host)
 }

@@ -301,6 +301,22 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		return err
 	}
 
+	if err := verifyUploadedBackup(cfg, uploadPath, remote); err != nil {
+		code := errcode.UploadFailed
+		red := secure.RedactText(err.Error())
+		_ = history.Complete(start, history.Entry{
+			Started: start, Finished: time.Now(), Status: "failed", Type: bt,
+			Error: red, Code: code, Path: remote, Duration: time.Since(start).String(),
+		})
+		notify.Failure(cfg, "Upload verification failed", err.Error())
+		_ = license.PushCritical(cfg, "upload verification failed: "+err.Error())
+		_ = license.PushEvent(cfg, map[string]any{
+			"event": "backup_finished", "ok": false, "code": code,
+			"error": red, "type": bt, "name": cfg.Name, "duration": time.Since(start).Seconds(),
+		})
+		return err
+	}
+
 	dur := time.Since(start)
 	_ = history.Complete(start, history.Entry{
 		Started: start, Finished: time.Now(), Status: "ok", Type: bt, Code: errcode.OK,
@@ -316,19 +332,56 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	return nil
 }
 
-func applyRetention(cfg config.Config) {
-	keep := cfg.Retention
-	if keep <= 0 {
-		keep = 14
+
+// verifyUploadedBackup downloads the just-written object and compares its
+// SHA-256 digest with the local payload. This detects truncated or corrupted
+// writes before the backup is recorded as successful.
+func verifyUploadedBackup(cfg config.Config, localPath, remoteKey string) error {
+	localHash, err := crypto.FileSHA256(localPath)
+	if err != nil {
+		return fmt.Errorf("hash local backup: %w", err)
 	}
+	tmp, err := os.CreateTemp(cfg.WorkDir, ".vaultbackup-verify-*")
+	if err != nil {
+		return fmt.Errorf("create verification file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	defer os.Remove(tmpPath)
+	if err := upload.Get(cfg, remoteKey, tmpPath); err != nil {
+		return fmt.Errorf("read back uploaded backup: %w", err)
+	}
+	remoteHash, err := crypto.FileSHA256(tmpPath)
+	if err != nil {
+		return fmt.Errorf("hash uploaded backup: %w", err)
+	}
+	if localHash != remoteHash {
+		return fmt.Errorf("uploaded backup checksum mismatch (local %s, remote %s)", localHash, remoteHash)
+	}
+	return nil
+}
+
+func applyRetention(cfg config.Config) {
 	pol := retention.Policy{
 		Daily: cfg.RetentionPolicy.Daily, Weekly: cfg.RetentionPolicy.Weekly,
-		Monthly: cfg.RetentionPolicy.Monthly, Yearly: cfg.RetentionPolicy.Yearly, Keep: keep,
+		Monthly: cfg.RetentionPolicy.Monthly, Yearly: cfg.RetentionPolicy.Yearly,
+		Keep: cfg.RetentionPolicy.Keep,
+	}
+	// Preserve the legacy count policy only when no calendar tiers are enabled.
+	// Otherwise the default legacy count must not silently override tiering.
+	if pol.Daily <= 0 && pol.Weekly <= 0 && pol.Monthly <= 0 && pol.Yearly <= 0 && pol.Keep <= 0 {
+		pol.Keep = cfg.Retention
+		if pol.Keep <= 0 {
+			pol.Keep = 14
+		}
 	}
 	if err := pol.Apply(cfg.WorkDir); err != nil {
 		log.Printf("retention workdir: %v", err)
 	}
-	if err := upload.ApplyRetention(cfg, keep); err != nil {
+	if err := upload.ApplyRetentionPolicy(cfg, pol); err != nil {
 		log.Printf("retention destination (%s): %v", cfg.Destination.Mode, err)
 	}
 }

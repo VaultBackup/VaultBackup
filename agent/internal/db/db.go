@@ -75,9 +75,15 @@ func Dump(workDir, dbType, uri, backupType string) (Result, error) {
 func DumpWithOptions(workDir, dbType, uri string, opts Options) (Result, error) {
 	start := time.Now()
 	t := NormalizeType(dbType)
-	bt := opts.BackupType
+	bt := strings.ToLower(strings.TrimSpace(opts.BackupType))
 	if bt == "" {
 		bt = "full"
+	}
+	// Incremental and differential modes are not implemented as dependency-
+	// tracked chains. Reject them rather than silently producing a full dump
+	// under a misleading type that retention could later orphan.
+	if bt == "incremental" || bt == "differential" {
+		return Result{}, fmt.Errorf("backup type %q is not supported: only full and schema backups are currently safe", bt)
 	}
 	outName := fmt.Sprintf("backup-%s-%s-%s", t, bt, start.UTC().Format("20060102T150405Z"))
 	var (

@@ -23,8 +23,14 @@ func LoadOrCreateKey(path string) ([]byte, error) {
 		return nil, errors.New("key_file not set")
 	}
 	data, err := os.ReadFile(path)
-	if err == nil && len(data) >= 32 {
+	if err == nil {
+		if len(data) < 32 {
+			return nil, errors.New("existing key file is too short; refusing to replace it because backups may depend on this key")
+		}
 		return data[:32], nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read existing key file: %w", err)
 	}
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -64,8 +70,12 @@ func EncryptFile(src, dst string, key []byte) error {
 		return err
 	}
 	defer in.Close()
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
+		return err
+	}
+	if err := out.Chmod(0o600); err != nil {
+		_ = out.Close()
 		return err
 	}
 	defer out.Close()
@@ -142,8 +152,12 @@ func DecryptFile(src, dst string, key []byte) error {
 	if err != nil {
 		return err
 	}
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
+		return err
+	}
+	if err := out.Chmod(0o600); err != nil {
+		_ = out.Close()
 		return err
 	}
 	defer out.Close()
