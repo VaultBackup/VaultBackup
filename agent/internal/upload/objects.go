@@ -1,9 +1,11 @@
 package upload
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -101,9 +103,16 @@ func ApplyRetention(cfg config.Config, keep int) error {
 	if len(filtered) <= keep {
 		return nil
 	}
-	// List returns newest first.
+	// List returns newest first. Surface every deletion failure so callers
+	// cannot report retention as successful while old backups remain stored.
+	var failures []string
 	for i := keep; i < len(filtered); i++ {
-		_ = Delete(cfg, filtered[i].Key)
+		if err := Delete(cfg, filtered[i].Key); err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", filtered[i].Key, err))
+		}
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("retention could not delete %d backup object(s): %s", len(failures), strings.Join(failures, "; "))
 	}
 	return nil
 }
@@ -161,38 +170,77 @@ func listS3(d config.Destination, prefix string) ([]Object, error) {
 	p := strings.Trim(d.S3Prefix, "/")
 	if prefix != "" {
 		if p != "" {
-			p = p + "/" + strings.TrimPrefix(prefix, "/")
+			p += "/" + strings.TrimPrefix(prefix, "/")
 		} else {
 			p = strings.TrimPrefix(prefix, "/")
 		}
 	}
-	var listURL string
-	if pathStyle {
-		listURL = fmt.Sprintf("%s?list-type=2&max-keys=1000", base)
-	} else {
-		listURL = fmt.Sprintf("%s/?list-type=2&max-keys=1000", base)
+	listBase := base
+	if !pathStyle {
+		listBase += "/"
 	}
-	if p != "" {
-		listURL += "&prefix=" + strings.ReplaceAll(p, " ", "%20")
+	var out []Object
+	continuation := ""
+	for {
+		query := url.Values{}
+		query.Set("list-type", "2")
+		query.Set("max-keys", "1000")
+		if p != "" {
+			query.Set("prefix", p)
+		}
+		if continuation != "" {
+			query.Set("continuation-token", continuation)
+		}
+		req, err := http.NewRequest(http.MethodGet, listBase+"?"+query.Encode(), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Host = host
+		if err := signV4(req, nil, d); err != nil {
+			return nil, err
+		}
+		resp, err := httpx.UploadClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		closeErr := resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		if resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("s3 list HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		}
+		var page struct {
+			Contents []struct {
+				Key          string    `xml:"Key"`
+				Size         int64     `xml:"Size"`
+				LastModified time.Time `xml:"LastModified"`
+			} `xml:"Contents"`
+			IsTruncated           bool   `xml:"IsTruncated"`
+			NextContinuationToken string `xml:"NextContinuationToken"`
+		}
+		if err := xml.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parse s3 list response: %w", err)
+		}
+		for _, item := range page.Contents {
+			if item.Key != "" {
+				out = append(out, Object{Key: item.Key, Size: item.Size, ModTime: item.LastModified})
+			}
+		}
+		if !page.IsTruncated {
+			break
+		}
+		if page.NextContinuationToken == "" || page.NextContinuationToken == continuation {
+			return nil, fmt.Errorf("s3 list response is truncated without a usable continuation token")
+		}
+		continuation = page.NextContinuationToken
 	}
-	req, err := http.NewRequest(http.MethodGet, listURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Host = host
-	if err := signV4(req, nil, d); err != nil {
-		return nil, err
-	}
-	resp, err := httpx.UploadClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("s3 list HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	return parseS3List(string(body)), nil
+	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
+	return out, nil
 }
 
 func parseS3List(xmlBody string) []Object {
@@ -695,8 +743,12 @@ func writeResponseToFile(r io.Reader, localPath string) error {
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		return err
 	}
-	f, err := os.Create(localPath)
+	f, err := os.OpenFile(localPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
+		return err
+	}
+	if err := f.Chmod(0o600); err != nil {
+		_ = f.Close()
 		return err
 	}
 	defer f.Close()
