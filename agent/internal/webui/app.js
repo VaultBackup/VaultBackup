@@ -104,7 +104,8 @@
     refreshReviewProbeMsg();
   }
 
-  function runDbTest(btn) if (!$("db_uri").value.trim()) {
+  function runDbTest(btn) {
+    if (!$("db_uri").value.trim()) {
         toast("Connection URI is required", false);
         return;
       }
@@ -338,7 +339,7 @@
         btnR.onclick = function () {
           api("/api/backups/get", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: key }) })
             .then(function () { toast("Restore started", true); })
-            .catch(function (e) { toast(String toast(String(e.message || e), false); });
+            .catch(function (e) { toast(String(e.message || e), false); });
         };
         var btnD = document.createElement("button");
         btnD.type = "button";
@@ -365,7 +366,6 @@
   var btnStor = $("btn-refresh-storage");
   if (btnStor) btnStor.addEventListener("click", function () { refreshStorage(); });
 
-  // Load existing config into form
   api("/api/config").then(function (c) {
     if (!c) return;
     if (c.name) $("name").value = c.name;
