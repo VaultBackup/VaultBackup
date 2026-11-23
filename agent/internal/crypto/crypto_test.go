@@ -42,3 +42,21 @@ func TestDecryptFileWritesPrivateOutput(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadOrCreateKeyDoesNotReplaceDamagedKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.key")
+	original := []byte("broken")
+	if err := os.WriteFile(path, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadOrCreateKey(path); err == nil {
+		t.Fatal("expected damaged existing key to be rejected")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("damaged key was changed: %q", got)
+	}
+}
