@@ -9,7 +9,9 @@ import (
 	"time"
 )
 
-// Policy describes tiered retention.
+// Policy describes tiered retention. Each tier keeps the newest backup in
+// each of the most recent distinct calendar periods. Keep is an additional
+// minimum count retained for compatibility with count-based configurations.
 type Policy struct {
 	Daily   int
 	Weekly  int
@@ -18,9 +20,8 @@ type Policy struct {
 	Keep    int
 }
 
-// IsBackupArtifact returns true for agent backup payloads only (not keys/logs/config).
-// Used by workdir retention and destination ApplyRetention so we never delete
-// agent.key, logs, or unrelated objects in a shared bucket prefix.
+// IsBackupArtifact returns true for known backup payload names, not keys,
+// logs, configuration, or unrelated objects in a shared destination.
 func IsBackupArtifact(name string) bool {
 	base := strings.ToLower(filepath.Base(name))
 	switch base {
@@ -30,15 +31,16 @@ func IsBackupArtifact(name string) bool {
 	if strings.HasPrefix(base, "backup-") {
 		return true
 	}
-	for _, suf := range []string{".sql", ".sql.gz", ".dump", ".archive", ".vbenc", ".gz", ".zip", ".bak", ".db.gz"} {
-		if strings.HasSuffix(base, suf) {
+	for _, suffix := range []string{".sql", ".sql.gz", ".dump", ".archive", ".vbenc", ".gz", ".zip", ".bak", ".db.gz"} {
+		if strings.HasSuffix(base, suffix) {
 			return true
 		}
 	}
 	return false
 }
 
-// Apply removes old backup artifacts in dir according to the policy (or Keep N).
+// Apply applies calendar-tier retention to backup artifacts in dir. It never
+// removes directories or files that do not look like backup artifacts.
 func (p Policy) Apply(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -49,36 +51,80 @@ func (p Policy) Apply(dir string) error {
 		mod  time.Time
 	}
 	var files []item
-	for _, e := range entries {
-		if e.IsDir() {
+	for _, entry := range entries {
+		if entry.IsDir() || !IsBackupArtifact(entry.Name()) {
 			continue
 		}
-		if !IsBackupArtifact(e.Name()) {
-			continue
-		}
-		info, err := e.Info()
+		info, err := entry.Info()
 		if err != nil {
-			continue
+			return fmt.Errorf("stat retention candidate %q: %w", entry.Name(), err)
 		}
-		files = append(files, item{filepath.Join(dir, e.Name()), info.ModTime()})
+		files = append(files, item{path: filepath.Join(dir, entry.Name()), mod: info.ModTime()})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].mod.After(files[j].mod) })
-
-	keep := p.Keep
-	if keep <= 0 {
-		keep = p.Daily + p.Weekly + p.Monthly + p.Yearly
-	}
-	if keep <= 0 {
+	if len(files) == 0 {
 		return nil
 	}
+
+	keep := make(map[string]struct{})
+	// Keep is additive to tiered retention and preserves legacy count-based
+	// expectations when a policy mixes both forms.
+	count := p.Keep
+	if count > len(files) {
+		count = len(files)
+	}
+	for i := 0; i < count; i++ {
+		keep[files[i].path] = struct{}{}
+	}
+
+	keepNewestPerPeriod(files, keep, p.Daily, func(t time.Time) string {
+		return t.Format("2006-01-02")
+	})
+	keepNewestPerPeriod(files, keep, p.Weekly, func(t time.Time) string {
+		year, week := t.ISOWeek()
+		return fmt.Sprintf("%04d-W%02d", year, week)
+	})
+	keepNewestPerPeriod(files, keep, p.Monthly, func(t time.Time) string {
+		return t.Format("2006-01")
+	})
+	keepNewestPerPeriod(files, keep, p.Yearly, func(t time.Time) string {
+		return t.Format("2006")
+	})
+
 	var failures []string
-	for i := keep; i < len(files); i++ {
-		if err := os.Remove(files[i].path); err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %v", files[i].path, err))
+	for _, file := range files {
+		if _, ok := keep[file.path]; ok {
+			continue
+		}
+		if err := os.Remove(file.path); err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", file.path, err))
 		}
 	}
 	if len(failures) > 0 {
 		return fmt.Errorf("retention could not remove %d backup file(s): %s", len(failures), strings.Join(failures, "; "))
 	}
 	return nil
+}
+
+func keepNewestPerPeriod(files []struct {
+	path string
+	mod  time.Time
+}, keep map[string]struct{}, limit int, period func(time.Time) string) {
+	if limit <= 0 {
+		return
+	}
+	seen := make(map[string]struct{})
+	retained := 0
+	for _, file := range files {
+		key := period(file.mod)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		keep[file.path] = struct{}{}
+		retained++
+		if retained == limit {
+			return
+		}
+	}
 }
