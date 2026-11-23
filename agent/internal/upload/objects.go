@@ -117,6 +117,40 @@ func ApplyRetention(cfg config.Config, keep int) error {
 	return nil
 }
 
+ 
+// ApplyRetentionPolicy applies the same calendar-tier selection to remote
+// backup artifacts as the local work directory. Non-backup objects are ignored.
+func ApplyRetentionPolicy(cfg config.Config, policy retention.Policy) error {
+	objs, err := List(cfg, "")
+	if err != nil {
+		return err
+	}
+	var backups []Object
+	for _, obj := range objs {
+		if retention.IsBackupArtifact(obj.Key) {
+			backups = append(backups, obj)
+		}
+	}
+	times := make([]time.Time, len(backups))
+	for i := range backups {
+		times[i] = backups[i].ModTime
+	}
+	keep := retention.KeepMask(times, policy)
+	var failures []string
+	for i, obj := range backups {
+		if keep[i] {
+			continue
+		}
+		if err := Delete(cfg, obj.Key); err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", obj.Key, err))
+		}
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("retention could not delete %d backup object(s): %s", len(failures), strings.Join(failures, "; "))
+	}
+	return nil
+}
+
 func localDir(d config.Destination) string {
 	dir := d.LocalDir
 	if dir == "" {
