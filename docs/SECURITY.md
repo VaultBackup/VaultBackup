@@ -64,3 +64,19 @@ Empty secret fields from the UI mean **"keep previous"** (token/password not wip
 Treat license tokens and storage keys as credentials. Rotate agent tokens after device reimage or suspected leak.
 
 See also: [AGENT.md](AGENT.md) · [CAPABILITIES.md](../CAPABILITIES.md)
+
+
+## Encryption key recovery and rotation
+
+The agent encryption key is not recoverable from the encrypted backup. Keep an independent, access-controlled copy of the exact `agent.key` file for every agent. Back up the key file and the configuration separately from the backup destination, restrict the recovery copy to the backup operators, and test that the copy can decrypt a sample backup.
+
+Recovery procedure:
+
+1. Stop the agent before changing key files.
+2. Restore the matching `agent.key` to the configured `security.key_file` path.
+3. Confirm the file is readable only by the agent account (Unix mode `0600`).
+4. Run a restore test against a known backup before resuming scheduled jobs.
+
+A missing key file can be generated for a new agent, but a damaged existing key file is now rejected rather than silently replaced. Replacing it would make older encrypted backups permanently unreadable.
+
+**Key rotation is not yet automated. Do not replace an active key while backups encrypted with it remain in retention.** A supported rotation tool must re-encrypt or otherwise migrate every retained backup, verify each result, and preserve the old key until the migration and restore drill succeed. Until then, treat key rotation as a planned migration requiring an independently verified recovery copy, not as routine file replacement.
