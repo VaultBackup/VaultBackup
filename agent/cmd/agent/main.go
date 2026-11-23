@@ -317,18 +317,23 @@ func doBackup(cfg config.Config, typeOverride string) error {
 }
 
 func applyRetention(cfg config.Config) {
-	keep := cfg.Retention
-	if keep <= 0 {
-		keep = 14
-	}
 	pol := retention.Policy{
 		Daily: cfg.RetentionPolicy.Daily, Weekly: cfg.RetentionPolicy.Weekly,
-		Monthly: cfg.RetentionPolicy.Monthly, Yearly: cfg.RetentionPolicy.Yearly, Keep: keep,
+		Monthly: cfg.RetentionPolicy.Monthly, Yearly: cfg.RetentionPolicy.Yearly,
+		Keep: cfg.RetentionPolicy.Keep,
+	}
+	// Preserve the legacy count policy only when no calendar tiers are enabled.
+	// Otherwise the default legacy count must not silently override tiering.
+	if pol.Daily <= 0 && pol.Weekly <= 0 && pol.Monthly <= 0 && pol.Yearly <= 0 && pol.Keep <= 0 {
+		pol.Keep = cfg.Retention
+		if pol.Keep <= 0 {
+			pol.Keep = 14
+		}
 	}
 	if err := pol.Apply(cfg.WorkDir); err != nil {
 		log.Printf("retention workdir: %v", err)
 	}
-	if err := upload.ApplyRetention(cfg, keep); err != nil {
+	if err := upload.ApplyRetentionPolicy(cfg, pol); err != nil {
 		log.Printf("retention destination (%s): %v", cfg.Destination.Mode, err)
 	}
 }
