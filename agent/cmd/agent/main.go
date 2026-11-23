@@ -301,7 +301,6 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		return err
 	}
 
-
 	if err := verifyUploadedBackup(cfg, uploadPath, remote); err != nil {
 		code := errcode.UploadFailed
 		red := secure.RedactText(err.Error())
@@ -333,7 +332,7 @@ func doBackup(cfg config.Config, typeOverride string) error {
 	return nil
 }
 
- 
+
 // verifyUploadedBackup downloads the just-written object and compares its
 // SHA-256 digest with the local payload. This detects truncated or corrupted
 // writes before the backup is recorded as successful.
