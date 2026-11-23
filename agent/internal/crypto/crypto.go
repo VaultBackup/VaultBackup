@@ -142,8 +142,12 @@ func DecryptFile(src, dst string, key []byte) error {
 	if err != nil {
 		return err
 	}
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
+		return err
+	}
+	if err := out.Chmod(0o600); err != nil {
+		_ = out.Close()
 		return err
 	}
 	defer out.Close()
