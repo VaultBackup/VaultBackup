@@ -17,6 +17,10 @@ on:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+  pull_request:
+    paths:
+      - '.github/workflows/agent-e2e.yml'
+      - 'agent/**'
   push:
     branches: [main]
     paths:
@@ -72,9 +76,11 @@ jobs:
           TOKEN="${SECRET_TOKEN:-}"
           if [ -z "$TOKEN" ]; then TOKEN="${INPUT_TOKEN:-}"; fi
           if [ -z "$TOKEN" ]; then
-            echo "::error::No license token. Set repo secret AGENT_LICENSE_TOKEN or pass workflow_dispatch input license_token."
-            exit 1
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No license token configured. Build smoke tests run; licensed backup/restore checks are skipped."
+            exit 0
           fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
           echo "token_len=${#TOKEN}"
 
@@ -148,6 +154,7 @@ jobs:
 
       - name: License check (control plane only)
         id: lic
+        if: steps.tok.outputs.available == 'true'
         run: |
           set -euo pipefail
           CFG="$RUNNER_TEMP/config.json"
