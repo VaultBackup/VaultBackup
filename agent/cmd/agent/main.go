@@ -301,6 +301,23 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		return err
 	}
 
+
+	if err := verifyUploadedBackup(cfg, uploadPath, remote); err != nil {
+		code := errcode.UploadFailed
+		red := secure.RedactText(err.Error())
+		_ = history.Complete(start, history.Entry{
+			Started: start, Finished: time.Now(), Status: "failed", Type: bt,
+			Error: red, Code: code, Path: remote, Duration: time.Since(start).String(),
+		})
+		notify.Failure(cfg, "Upload verification failed", err.Error())
+		_ = license.PushCritical(cfg, "upload verification failed: "+err.Error())
+		_ = license.PushEvent(cfg, map[string]any{
+			"event": "backup_finished", "ok": false, "code": code,
+			"error": red, "type": bt, "name": cfg.Name, "duration": time.Since(start).Seconds(),
+		})
+		return err
+	}
+
 	dur := time.Since(start)
 	_ = history.Complete(start, history.Entry{
 		Started: start, Finished: time.Now(), Status: "ok", Type: bt, Code: errcode.OK,
@@ -313,6 +330,38 @@ func doBackup(cfg config.Config, typeOverride string) error {
 		"size": res.SizeBytes, "duration": dur.Seconds(), "remote": remote, "name": cfg.Name,
 	})
 	applyRetention(cfg)
+	return nil
+}
+
+ 
+// verifyUploadedBackup downloads the just-written object and compares its
+// SHA-256 digest with the local payload. This detects truncated or corrupted
+// writes before the backup is recorded as successful.
+func verifyUploadedBackup(cfg config.Config, localPath, remoteKey string) error {
+	localHash, err := crypto.FileSHA256(localPath)
+	if err != nil {
+		return fmt.Errorf("hash local backup: %w", err)
+	}
+	tmp, err := os.CreateTemp(cfg.WorkDir, ".vaultbackup-verify-*")
+	if err != nil {
+		return fmt.Errorf("create verification file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	defer os.Remove(tmpPath)
+	if err := upload.Get(cfg, remoteKey, tmpPath); err != nil {
+		return fmt.Errorf("read back uploaded backup: %w", err)
+	}
+	remoteHash, err := crypto.FileSHA256(tmpPath)
+	if err != nil {
+		return fmt.Errorf("hash uploaded backup: %w", err)
+	}
+	if localHash != remoteHash {
+		return fmt.Errorf("uploaded backup checksum mismatch (local %s, remote %s)", localHash, remoteHash)
+	}
 	return nil
 }
 
