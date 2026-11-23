@@ -104,33 +104,53 @@ func (p Policy) Apply(dir string) error {
 // order. It is shared by local and remote retention so both destinations use
 // identical tier-selection rules.
 func KeepMask(times []time.Time, p Policy) []bool {
-	type indexed struct { index int; mod time.Time }
+	type indexed struct {
+		index int
+		mod   time.Time
+	}
 	items := make([]indexed, len(times))
-	for i, t := range times { items[i] = indexed{index: i, mod: t} }
+	for i, t := range times {
+		items[i] = indexed{index: i, mod: t}
+	}
 	sort.Slice(items, func(i, j int) bool { return items[i].mod.After(items[j].mod) })
 	mask := make([]bool, len(times))
 	keep := make(map[int]struct{})
 	count := p.Keep
-	if count > len(items) { count = len(items) }
-	for i := 0; i < count; i++ { keep[items[i].index] = struct{}{} }
+	if count > len(items) {
+		count = len(items)
+	}
+	for i := 0; i < count; i++ {
+		keep[items[i].index] = struct{}{}
+	}
 	mark := func(limit int, key func(time.Time) string) {
-		if limit <= 0 { return }
+		if limit <= 0 {
+			return
+		}
 		seen := make(map[string]struct{})
 		n := 0
 		for _, item := range items {
 			k := key(item.mod)
-			if _, ok := seen[k]; ok { continue }
+			if _, ok := seen[k]; ok {
+				continue
+			}
 			seen[k] = struct{}{}
 			keep[item.index] = struct{}{}
 			n++
-			if n == limit { return }
+			if n == limit {
+				return
+			}
 		}
 	}
 	mark(p.Daily, func(t time.Time) string { return t.Format("2006-01-02") })
-	mark(p.Weekly, func(t time.Time) string { y, w := t.ISOWeek(); return fmt.Sprintf("%04d-W%02d", y, w) })
+	mark(p.Weekly, func(t time.Time) string {
+		y, w := t.ISOWeek()
+		return fmt.Sprintf("%04d-W%02d", y, w)
+	})
 	mark(p.Monthly, func(t time.Time) string { return t.Format("2006-01") })
 	mark(p.Yearly, func(t time.Time) string { return t.Format("2006") })
-	for i := range mask { _, mask[i] = keep[i] }
+	for i := range mask {
+		_, mask[i] = keep[i]
+	}
 	return mask
 }
 
