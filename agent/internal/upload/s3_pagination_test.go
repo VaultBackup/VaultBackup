@@ -35,8 +35,8 @@ func TestListS3FollowsContinuationTokens(t *testing.T) {
 		S3Endpoint: server.URL,
 		S3Bucket:   "vault",
 		S3Region:   "us-east-1",
-		S3AccessKey: "access",
-		S3SecretKey:"secret",
+		S3AccessKey:  "access",
+		S3SecretKey:  "secret",
 	}, "")
 	if err != nil {
 		t.Fatal(err)
