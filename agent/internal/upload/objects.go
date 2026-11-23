@@ -117,7 +117,7 @@ func ApplyRetention(cfg config.Config, keep int) error {
 	return nil
 }
 
- 
+
 // ApplyRetentionPolicy applies the same calendar-tier selection to remote
 // backup artifacts as the local work directory. Non-backup objects are ignored.
 func ApplyRetentionPolicy(cfg config.Config, policy retention.Policy) error {
