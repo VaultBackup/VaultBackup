@@ -13,293 +13,202 @@
   var termsVersion = "";
   var termsAlreadyAccepted = false;
 
-  function toast(msg, ok) {
-    var t = $("toast");
-    if (!t) return;
-    t.textContent = msg;
-    t.className = "toast " + (ok ? "ok" : "bad");
-    setTimeout(function () { t.className = "toast hidden"; }, 2800);
+  function showMsg(el, text, ok) {
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = "msg show " + (ok ? "ok" : "err");
   }
-
-  function toggleDest() {
-    var m = $("dest_mode") && $("dest_mode").value;
-    ["local", "s3", "azure", "webdav", "sftp"].forEach(function (k) {
-      var el = $("dest-" + k);
-      if (el) el.classList.toggle("hidden", m !== k);
-    });
-  }
-
-  function destPayload() {
-    return {
-      mode: $("dest_mode").value,
-      local_dir: ($("local_dir") || {}).value || "",
-      s3_endpoint: ($("s3_endpoint") || {}).value || "",
-      s3_region: ($("s3_region") || {}).value || "",
-      s3_bucket: ($("s3_bucket") || {}).value || "",
-      s3_prefix: ($("s3_prefix") || {}).value || "",
-      s3_access_key: ($("s3_access_key") || {}).value || "",
-      s3_secret_key: ($("s3_secret_key") || {}).value || "",
-      azure_account: ($("azure_account") || {}).value || "",
-      azure_container: ($("azure_container") || {}).value || "",
-      azure_key: ($("azure_key") || {}).value || "",
-      azure_prefix: ($("azure_prefix") || {}).value || "",
-      webdav_url: ($("webdav_url") || {}).value || "",
-      webdav_user: ($("webdav_user") || {}).value || "",
-      webdav_password: ($("webdav_password") || {}).value || "",
-      sftp_host: ($("sftp_host") || {}).value || "",
-      sftp_user: ($("sftp_user") || {}).value || "",
-      sftp_password: ($("sftp_password") || {}).value || "",
-      sftp_key_file: ($("sftp_key_file") || {}).value || "",
-      sftp_path: ($("sftp_path") || {}).value || "",
-      sftp_insecure: !!($("sftp_insecure") && $("sftp_insecure").checked)
-    };
-  }
-
-  function bodyFromForm() {
-    return {
-      name: ($("name") || {}).value || "",
-      schedule: ($("schedule") || {}).value || "0 3 * * *",
-      retention: Number(($("retention") || {}).value) || 14,
-      license: { token: ($("token") || {}).value || "" },
-      database: {
-        type: ($("db_type") || {}).value || "postgres",
-        uri: ($("db_uri") || {}).value || "",
-        backup_type: ($("backup_type") || {}).value || "full"
-      },
-      destination: destPayload(),
-      security: { encrypt: !!($("encrypt") && $("encrypt").checked) },
-      terms_accepted: termsAlreadyAccepted || !!($("terms_accept") && $("terms_accept").checked),
-      terms_version: termsVersion || undefined
-    };
+  function clearMsg(el) {
+    if (!el) return;
+    el.textContent = "";
+    el.className = "msg";
   }
 
   function setStep(n) {
     document.querySelectorAll(".step").forEach(function (b) {
-      b.classList.toggle("on", Number(b.getAttribute("data-step")) === n);
+      var s = parseInt(b.getAttribute("data-step"), 10);
+      b.classList.toggle("on", s === n);
+      b.classList.toggle("done", s < n);
     });
-    document.querySelectorAll(".panel").forEach(function (p) {
-      p.classList.toggle("on", p.getAttribute("data-panel") === String(n));
+    document.querySelectorAll("[data-panel]").forEach(function (p) {
+      p.classList.toggle("hidden", parseInt(p.getAttribute("data-panel"), 10) !== n);
     });
   }
 
-  function applyTermsUI(accepted) {
-    termsAlreadyAccepted = !!accepted;
-    var box = $("terms-text");
-    var accept = $("terms_accept");
-    var note = $("terms-note");
-    var wrap = $("terms-accept-wrap");
-    if (termsAlreadyAccepted) {
-      if (accept) {
-        accept.checked = true;
-        accept.disabled = true;
-      }
-      if (wrap) wrap.classList.add("hidden");
-      if (note) {
-        note.classList.remove("hidden");
-        note.textContent = "EULA already accepted on this agent (version " + (termsVersion || "current") + "). You only need to accept again if the agreement is updated.";
-      }
-      if (box) box.classList.add("collapsed");
-    } else {
-      if (accept) {
-        accept.checked = false;
-        accept.disabled = false;
-      }
-      if (wrap) wrap.classList.remove("hidden");
-      if (note) {
-        note.classList.add("hidden");
-        note.textContent = "";
-      }
-      if (box) box.classList.remove("collapsed");
-    }
+  function bodyFromForm() {
+    var fd = new FormData($("cfg-form"));
+    var o = {};
+    fd.forEach(function (v, k) { o[k] = v; });
+    o.sftp_insecure = !!($("sftp_insecure") && $("sftp_insecure").checked);
+    if (termsVersion) o.terms_version = termsVersion;
+    if ($("terms_accept") && $("terms_accept").checked) o.terms_accepted = true;
+    return o;
   }
 
   function loadTerms() {
     return api("/api/terms").then(function (j) {
-      termsVersion = j.version || "";
-      if ($("terms-text")) $("terms-text").textContent = j.text || "EULA unavailable.";
-      applyTermsUI(!!j.accepted);
+      termsVersion = j.version || j.terms_version || "";
+      var box = $("terms-text");
+      if (box) box.textContent = j.text || j.terms || "See console for license terms.";
+      if (j.accepted || j.terms_accepted) {
+        termsAlreadyAccepted = true;
+        var note = $("terms-note");
+        if (note) {
+          note.textContent = "Terms already accepted (v" + (termsVersion || "?") + ").";
+          note.classList.remove("hidden");
+        }
+        var wrap = $("terms-accept-wrap");
+        if (wrap) wrap.classList.add("hidden");
+        if ($("terms_accept")) $("terms_accept").checked = true;
+      }
     }).catch(function () {
-      if ($("terms-text")) $("terms-text").textContent = "Could not load EULA. Restart the agent and try again.";
+      var box = $("terms-text");
+      if (box) box.textContent = "Could not load terms. You can still proceed after accepting below.";
     });
   }
-
-  document.querySelectorAll(".step").forEach(function (b) {
-    b.addEventListener("click", function () { setStep(Number(b.getAttribute("data-step"))); });
-  });
-
-  if ($("dest_mode")) $("dest_mode").addEventListener("change", toggleDest);
-
-  if ($("next-1")) $("next-1").addEventListener("click", function () {
-    if (!termsAlreadyAccepted && !($("terms_accept") && $("terms_accept").checked)) {
-      toast("Please accept the EULA to continue", false);
-      return;
-    }
-    setStep(2);
-  });
-  if ($("next-2")) $("next-2").addEventListener("click", function () {
-    if (!probeState.db) { toast("Test database first", false); return; }
-    setStep(3);
-  });
-  if ($("next-3")) $("next-3").addEventListener("click", function () {
-    if (!probeState.dest) { toast("Test destination first", false); return; }
-    setStep(4);
-  });
-  if ($("back-2")) $("back-2").addEventListener("click", function () { setStep(1); });
-  if ($("back-3")) $("back-3").addEventListener("click", function () { setStep(2); });
-  if ($("back-4")) $("back-4").addEventListener("click", function () { setStep(3); });
-
-  if ($("btn-test-db")) $("btn-test-db").addEventListener("click", function () {
-    api("/api/test-db", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: $("db_type").value, uri: $("db_uri").value.trim() })
-    }).then(function (j) {
-      probeState.db = !!j.ok;
-      toast(j.ok ? "Database OK" : (j.detail || "Failed"), !!j.ok);
-      if ($("db-probe-msg")) $("db-probe-msg").textContent = j.detail || (j.ok ? "OK" : "Failed");
-    }).catch(function (e) { toast(String(e.message || e), false); });
-  });
-
-  if ($("btn-test-dest")) $("btn-test-dest").addEventListener("click", function () {
-    api("/api/test-dest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(destPayload())
-    }).then(function (j) {
-      probeState.dest = !!j.ok;
-      toast(j.ok ? "Destination OK" : (j.detail || "Failed"), !!j.ok);
-      if ($("dest-probe-msg")) $("dest-probe-msg").textContent = j.detail || (j.ok ? "OK" : "Failed");
-    }).catch(function (e) { toast(String(e.message || e), false); });
-  });
-
-  if ($("btn-save")) $("btn-save").addEventListener("click", function () {
-    if (!termsAlreadyAccepted && !($("terms_accept") && $("terms_accept").checked)) {
-      toast("Accept the EULA on step 1 before saving", false);
-      setStep(1);
-      return;
-    }
-    if (!probeState.db) { toast("Test database first", false); setStep(2); return; }
-    if (!probeState.dest) { toast("Test destination first", false); setStep(3); return; }
-    api("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyFromForm())
-    }).then(function (j) {
-      toast(j.ok ? "Saved" : "Save failed", !!j.ok);
-      if (j.ok) {
-        applyTermsUI(true);
-        if ($("token")) $("token").value = "";
-      }
-    }).catch(function (e) { toast(String(e.message || e), false); });
-  });
-
-  if ($("btn-run")) $("btn-run").addEventListener("click", function () {
-    api("/api/run-once", { method: "POST" })
-      .then(function () { toast("Backup started", true); })
-      .catch(function (e) { toast(String(e.message || e), false); });
-  });
-
-  if ($("btn-license")) $("btn-license").addEventListener("click", function () {
-    api("/api/test-license", { method: "POST" }).then(function (j) {
-      toast(j.allowed || j.ok ? "License OK" : (j.reason || "Failed"), !!(j.allowed || j.ok));
-    });
-  });
-
-  function refreshStorage() {
-    var box = $("storage-list");
-    if (!box) return;
-    api("/api/backups").then(function (j) {
-      var objs = j.objects || j.backups || [];
-      if (!objs.length) { box.textContent = "No backup objects found."; return; }
-      box.innerHTML = "";
-      objs.forEach(function (o) {
-        var row = document.createElement("div");
-        row.className = "stor-row";
-        row.textContent = (o.key || o.Key || "") + " · " + (o.size || o.Size || 0) + " bytes ";
-        var del = document.createElement("button");
-        del.type = "button"; del.className = "btn btn-ghost"; del.textContent = "Delete";
-        del.onclick = function () {
-          if (!confirm("Delete?")) return;
-          api("/api/backups/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: o.key || o.Key })
-          }).then(function () { toast("Deleted", true); refreshStorage(); })
-            .catch(function (e) { toast(e.message || "Failed", false); });
-        };
-        var rest = document.createElement("button");
-        rest.type = "button"; rest.className = "btn btn-ghost"; rest.textContent = "Restore";
-        rest.onclick = function () {
-          api("/api/backups/get", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: o.key || o.Key, decrypt: true })
-          }).then(function (r) { toast("Restored to " + (r.path || r.local_path || "work dir"), true); })
-            .catch(function (e) { toast(e.message || "Failed", false); });
-        };
-        row.appendChild(rest);
-        row.appendChild(del);
-        box.appendChild(row);
-      });
-    }).catch(function (e) { box.textContent = "List failed: " + (e.message || e); });
-  }
-  if ($("btn-refresh-storage")) $("btn-refresh-storage").addEventListener("click", refreshStorage);
-
-  api("/api/config").then(function (j) {
-    var c = j.config || {};
-    if (c.name && $("name")) $("name").value = c.name;
-    if (c.schedule && $("schedule")) $("schedule").value = c.schedule;
-    if (c.retention && $("retention")) $("retention").value = c.retention;
-    if (c.database) {
-      if (c.database.type && $("db_type")) $("db_type").value = c.database.type;
-      if (c.database.uri && $("db_uri")) $("db_uri").value = c.database.uri;
-      if (c.database.backup_type && $("backup_type")) $("backup_type").value = c.database.backup_type;
-    }
-    if (c.destination) {
-      if (c.destination.mode && $("dest_mode")) $("dest_mode").value = c.destination.mode;
-      if (c.destination.local_dir && $("local_dir")) $("local_dir").value = c.destination.local_dir;
-      if ($("sftp_insecure") && typeof c.destination.sftp_insecure === "boolean") {
-        $("sftp_insecure").checked = !!c.destination.sftp_insecure;
-      }
-      ["sftp_host", "sftp_user", "sftp_path", "s3_bucket", "s3_endpoint", "s3_region", "s3_prefix", "s3_access_key",
-        "webdav_url", "webdav_user", "azure_account", "azure_container", "azure_prefix"].forEach(function (k) {
-        if (c.destination[k] && $(k)) $(k).value = c.destination[k];
-      });
-    }
-    if (c.security && typeof c.security.encrypt === "boolean" && $("encrypt")) {
-      $("encrypt").checked = !!c.security.encrypt;
-    }
-    if (c.terms_accepted && c.terms_version && c.terms_version === termsVersion) {
-      applyTermsUI(true);
-    }
-    toggleDest();
-  }).catch(function () {});
 
   function refreshStatus() {
-    api("/api/status").then(function (j) {
-      if ($("status")) $("status").textContent = JSON.stringify(j, null, 2);
-      if ($("status-pill")) {
-        $("status-pill").textContent = j.licenseOk ? "License OK" : "License";
-        $("status-pill").className = "badge" + (j.licenseOk ? " ok" : "");
+    return api("/api/status").then(function (j) {
+      var pill = $("status-pill");
+      if (pill) {
+        if (j.licensed || j.license_ok) {
+          pill.textContent = "License OK";
+          pill.classList.add("ok");
+        } else {
+          pill.textContent = j.status || "Not licensed";
+          pill.classList.remove("ok");
+        }
       }
+      if ($("stat-license")) $("stat-license").textContent = (j.licensed || j.license_ok) ? "Valid" : (j.license_error || "—");
+      if ($("stat-next")) $("stat-next").textContent = j.next_run || j.nextRun || "—";
+      if ($("stat-last")) $("stat-last").textContent = j.last_status || j.lastStatus || "—";
     }).catch(function () {});
   }
 
   function refreshHistory() {
-    api("/api/history").then(function (j) {
-      var list = j.history || [];
-      if ($("history")) {
-        $("history").innerHTML = list.map(function (e) {
-          return "<div>" + (e.status || "") + " " + (e.code ? e.code + " " : "") + (e.started || "") + " " + (e.error || e.message || "") + "</div>";
-        }).join("") || "No history";
-      }
-    }).catch(function () {});
+    return api("/api/history").then(function () {}).catch(function () {});
   }
 
+  function refreshStorage() {
+    var list = $("backups-list");
+    if (!list) return;
+    return api("/api/backups").then(function (j) {
+      var items = j.objects || j.backups || j.items || [];
+      if (!items.length) {
+        list.innerHTML = "<p class=\"hint\">No objects found (or destination not configured).</p>";
+        return;
+      }
+      list.innerHTML = items.map(function (it) {
+        var name = it.key || it.name || it.path || "object";
+        var size = it.size_human || it.size || "";
+        return "<div class=\"backup-row\"><div><div>" + name + "</div><div class=\"meta\">" + size + "</div></div>" +
+          "<div class=\"backup-actions\">" +
+          "<button type=\"button\" class=\"btn\" data-restore=\"" + encodeURIComponent(name) + "\">Restore</button>" +
+          "<button type=\"button\" class=\"btn\" data-delete=\"" + encodeURIComponent(name) + "\">Delete</button>" +
+          "</div></div>";
+      }).join("");
+    }).catch(function (e) {
+      list.innerHTML = "<p class=\"hint\">" + (e.message || "Failed to list") + "</p>";
+    });
+  }
+
+  function gateTerms() {
+    if (termsAlreadyAccepted) return true;
+    if ($("terms_accept") && $("terms_accept").checked) return true;
+    alert("Please accept the EULA to continue.");
+    return false;
+  }
+
+  document.querySelectorAll(".step").forEach(function (b) {
+    b.addEventListener("click", function () {
+      setStep(parseInt(b.getAttribute("data-step"), 10));
+    });
+  });
+  document.querySelectorAll("[data-prev]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      setStep(parseInt(b.getAttribute("data-prev"), 10));
+    });
+  });
+
+  $("next-1") && $("next-1").addEventListener("click", function () {
+    if (!gateTerms()) return;
+    setStep(2);
+  });
+  $("next-2") && $("next-2").addEventListener("click", function () { setStep(3); });
+  $("next-3") && $("next-3").addEventListener("click", function () { setStep(4); });
+
+  function showDest(type) {
+    ["s3", "azure", "webdav", "sftp", "local"].forEach(function (t) {
+      var el = $("dest-" + t);
+      if (el) el.classList.toggle("hidden", t !== type);
+    });
+  }
+  if ($("dest_type")) {
+    $("dest_type").addEventListener("change", function () { showDest($("dest_type").value); });
+    showDest($("dest_type").value);
+  }
+
+  $("btn-test-db") && $("btn-test-db").addEventListener("click", function () {
+    clearMsg($("msg-db"));
+    api("/api/test-db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyFromForm()) })
+      .then(function () { probeState.db = true; showMsg($("msg-db"), "Connection OK", true); })
+      .catch(function (e) { showMsg($("msg-db"), e.message || "Failed", false); });
+  });
+
+  $("btn-test-dest") && $("btn-test-dest").addEventListener("click", function () {
+    clearMsg($("msg-dest"));
+    api("/api/test-dest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyFromForm()) })
+      .then(function () { probeState.dest = true; showMsg($("msg-dest"), "Destination OK", true); })
+      .catch(function (e) { showMsg($("msg-dest"), e.message || "Failed", false); });
+  });
+
+  $("btn-save") && $("btn-save").addEventListener("click", function () {
+    if (!gateTerms()) return;
+    clearMsg($("msg-review"));
+    api("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyFromForm()) })
+      .then(function () { showMsg($("msg-review"), "Configuration saved", true); refreshStatus(); })
+      .catch(function (e) { showMsg($("msg-review"), e.message || "Save failed", false); });
+  });
+
+  $("btn-license") && $("btn-license").addEventListener("click", function () {
+    clearMsg($("msg-review"));
+    api("/api/license-check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyFromForm()) })
+      .then(function () { showMsg($("msg-review"), "License OK", true); refreshStatus(); })
+      .catch(function (e) { showMsg($("msg-review"), e.message || "License check failed", false); });
+  });
+
+  $("btn-run") && $("btn-run").addEventListener("click", function () {
+    if (!gateTerms()) return;
+    clearMsg($("msg-review"));
+    api("/api/run-once", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyFromForm()) })
+      .then(function () { showMsg($("msg-review"), "Backup started", true); refreshStatus(); })
+      .catch(function (e) { showMsg($("msg-review"), e.message || "Run failed", false); });
+  });
+
+  $("btn-list-backups") && $("btn-list-backups").addEventListener("click", function () { refreshStorage(); });
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (t && t.getAttribute && t.getAttribute("data-restore")) {
+      var key = decodeURIComponent(t.getAttribute("data-restore"));
+      api("/api/backups/get", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: key }) })
+        .then(function () { alert("Restore requested for " + key); })
+        .catch(function (e) { alert(e.message || "Restore failed"); });
+    }
+    if (t && t.getAttribute && t.getAttribute("data-delete")) {
+      var key2 = decodeURIComponent(t.getAttribute("data-delete"));
+      if (!confirm("Delete " + key2 + "?")) return;
+      api("/api/backups/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: key2 }) })
+        .then(function () { refreshStorage(); })
+        .catch(function (e) { alert(e.message || "Delete failed"); });
+    }
+  });
+
   loadTerms();
-  toggleDest();
   refreshStatus();
-  refreshHistory();
-  refreshStorage();
-  setInterval(function () { refreshStatus(); refreshHistory(); }, 8000);
+  setInterval(function () {
+    refreshStatus();
+    refreshHistory();
+    refreshStorage();
+  }, 8000);
 })();
