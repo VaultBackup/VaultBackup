@@ -33,7 +33,7 @@ func TestApplyKeepsNewestPerCalendarTier(t *testing.T) {
 		}
 	}
 
-	policy := Policy{Daily: 2, Weekly: 2, Monthly: 2, Yearly: 2}
+	policy := Policy{Daily: 2, Weekly: 3, Monthly: 2, Yearly: 2}
 	if err := policy.Apply(dir); err != nil {
 		t.Fatal(err)
 	}
