@@ -269,7 +269,6 @@
     if (c.security && typeof c.security.encrypt === "boolean" && $("encrypt")) {
       $("encrypt").checked = !!c.security.encrypt;
     }
-    // termsAlreadyAccepted is authoritative from /api/terms; config is a fallback.
     if (c.terms_accepted && c.terms_version && c.terms_version === termsVersion) {
       applyTermsUI(true);
     }
@@ -279,7 +278,10 @@
   function refreshStatus() {
     api("/api/status").then(function (j) {
       if ($("status")) $("status").textContent = JSON.stringify(j, null, 2);
-      if ($("status-pill")) $("status-pill").textContent = j.licenseOk ? "License OK" : "License";
+      if ($("status-pill")) {
+        $("status-pill").textContent = j.licenseOk ? "License OK" : "License";
+        $("status-pill").className = "badge" + (j.licenseOk ? " ok" : "");
+      }
     }).catch(function () {});
   }
 
