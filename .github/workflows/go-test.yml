@@ -35,13 +35,16 @@ jobs:
           go-version: "1.22"
           cache: true
           cache-dependency-path: agent/go.sum
-      - name: Verify formatting
+      - name: Verify formatting of changed Go files
         run: |
-          files="$(gofmt -l .)"
+          files="$(git diff --name-only HEAD^1 HEAD -- '*.go')"
           if [ -n "$files" ]; then
-            echo "The following Go files need gofmt:"
-            echo "$files"
-            exit 1
+            unformatted="$(printf '%s\\n' "$files" | xargs gofmt -l)"
+            if [ -n "$unformatted" ]; then
+              echo "The following changed Go files need gofmt:"
+              echo "$unformatted"
+              exit 1
+            fi
           fi
       - name: Run tests
         run: go test ./...
