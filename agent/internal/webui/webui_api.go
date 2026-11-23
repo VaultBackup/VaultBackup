@@ -3,6 +3,8 @@ package webui
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -94,8 +96,26 @@ func (s *Server) handleBackupGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg := config.Get()
-	tmp := "./data/restore-" + strings.ReplaceAll(body.Key, "/", "_")
+	// Never derive a local path from a remote object key. Keys may contain
+	// platform-specific separators or traversal components.
+	restoreDir := filepath.Join(".", "data")
+	if err := os.MkdirAll(restoreDir, 0o700); err != nil {
+		writeErr(w, 500, "could not prepare restore directory")
+		return
+	}
+	f, err := os.CreateTemp(restoreDir, "restore-*")
+	if err != nil {
+		writeErr(w, 500, "could not create restore file")
+		return
+	}
+	tmp := f.Name()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		writeErr(w, 500, "could not prepare restore file")
+		return
+	}
 	if err := upload.Get(cfg, body.Key, tmp); err != nil {
+		_ = os.Remove(tmp)
 		writeErr(w, 500, err.Error())
 		return
 	}
