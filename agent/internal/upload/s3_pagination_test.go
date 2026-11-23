@@ -35,7 +35,7 @@ func TestListS3FollowsContinuationTokens(t *testing.T) {
 		S3Endpoint: server.URL,
 		S3Bucket:   "vault",
 		S3Region:   "us-east-1",
-		S3AccessKey:"access",
+		S3AccessKey: "access",
 		S3SecretKey:"secret",
 	}, "")
 	if err != nil {
@@ -67,8 +67,8 @@ func TestListS3RejectsTruncatedPageWithoutToken(t *testing.T) {
 
 	_, err := listS3(config.Destination{
 		S3Endpoint: server.URL,
-		S3Bucket: "vault",
-		S3Region: "us-east-1",
+		S3Bucket:   "vault",
+		S3Region:   "us-east-1",
 		S3AccessKey: "access",
 		S3SecretKey: "secret",
 	}, "")
