@@ -12,6 +12,11 @@ import (
 // Policy describes tiered retention. Each tier keeps the newest backup in
 // each of the most recent distinct calendar periods. Keep is an additional
 // minimum count retained for compatibility with count-based configurations.
+type retentionFile struct {
+	path string
+	mod  time.Time
+}
+
 type Policy struct {
 	Daily   int
 	Weekly  int
@@ -40,11 +45,7 @@ func (p Policy) Apply(dir string) error {
 	if err != nil {
 		return err
 	}
-	type item struct {
-		path string
-		mod  time.Time
-	}
-	var files []item
+	var files []retentionFile
 	for _, entry := range entries {
 		if entry.IsDir() || !IsBackupArtifact(entry.Name()) {
 			continue
@@ -53,7 +54,7 @@ func (p Policy) Apply(dir string) error {
 		if err != nil {
 			return fmt.Errorf("stat retention candidate %q: %w", entry.Name(), err)
 		}
-		files = append(files, item{path: filepath.Join(dir, entry.Name()), mod: info.ModTime()})
+		files = append(files, retentionFile{path: filepath.Join(dir, entry.Name()), mod: info.ModTime()})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].mod.After(files[j].mod) })
 	if len(files) == 0 {
@@ -154,10 +155,7 @@ func KeepMask(times []time.Time, p Policy) []bool {
 	return mask
 }
 
-func keepNewestPerPeriod(files []struct {
-	path string
-	mod  time.Time
-}, keep map[string]struct{}, limit int, period func(time.Time) string) {
+func keepNewestPerPeriod(files []retentionFile, keep map[string]struct{}, limit int, period func(time.Time) string) {
 	if limit <= 0 {
 		return
 	}
