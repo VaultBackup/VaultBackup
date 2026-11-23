@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 
 	"github.com/vaultbackup/agent/internal/config"
@@ -76,5 +75,4 @@ func TestListS3RejectsTruncatedPageWithoutToken(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for truncated response without continuation token")
 	}
-	_ = url.Values{} // keep query parsing behavior explicit in this test package
 }
