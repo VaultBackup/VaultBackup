@@ -28,15 +28,9 @@ func IsBackupArtifact(name string) bool {
 	case "agent.key", "agent.log", "history.json", "config.yaml", "config.json":
 		return false
 	}
-	if strings.HasPrefix(base, "backup-") {
-		return true
-	}
-	for _, suffix := range []string{".sql", ".sql.gz", ".dump", ".archive", ".vbenc", ".gz", ".zip", ".bak", ".db.gz"} {
-		if strings.HasSuffix(base, suffix) {
-			return true
-		}
-	}
-	return false
+	// The agent names every generated artifact with the backup- prefix.
+	// Extension-only matching could delete unrelated archives in shared storage.
+	return strings.HasPrefix(base, "backup-")
 }
 
 // Apply applies calendar-tier retention to backup artifacts in dir. It never
