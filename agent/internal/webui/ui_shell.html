@@ -4,144 +4,193 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>VaultBackup Agent</title>
-<style nonce="__CSP_NONCE__">
+<style>
 :root{
-  --bg:#0a1018;
-  --card:rgba(17,26,38,.98);
-  --line:rgba(148,163,184,.14);
-  --text:#f1f5f9;
-  --muted:#94a3b8;
-  --brand:#22c55e;
-  --brand-d:#16a34a;
-  --radius:14px;
-  --input:#0a121d;
+  --bg:#0a1018;--surface:#111a26;--surface2:#162032;--line:rgba(148,163,184,.14);
+  --text:#f1f5f9;--muted:#94a3b8;--dim:#64748b;
+  --brand:#22c55e;--brand2:#16a34a;--brand-soft:rgba(34,197,94,.12);
+  --ok:#4ade80;--warn:#fbbf24;--bad:#f87171;
+  --radius:16px;--shadow:0 16px 40px rgba(0,0,0,.28);
 }
 *{box-sizing:border-box}
+html,body{margin:0;padding:0}
 body{
-  margin:0;
-  font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;
-  background:linear-gradient(180deg,#0c1520 0%,#0a1018 45%);
-  color:var(--text);
-  min-height:100vh;
-  line-height:1.45;
+  min-height:100vh;color:var(--text);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  background:
+    radial-gradient(900px 420px at 8% -8%, rgba(34,197,94,.14), transparent 55%),
+    radial-gradient(700px 360px at 100% 0%, rgba(14,165,233,.08), transparent 50%),
+    linear-gradient(180deg,#0c1520 0%, var(--bg) 45%);
 }
-.shell{max-width:960px;margin:0 auto;padding:1.25rem}
+.shell{max-width:980px;margin:0 auto;padding:1.25rem 1.1rem 3rem}
 .topbar{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:1rem 1.15rem;
-  background:rgba(15,23,36,.92);
-  border:1px solid var(--line);
-  border-radius:16px;
-  margin-bottom:1rem;
-  box-shadow:0 8px 28px rgba(0,0,0,.18);
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  padding:.95rem 1.15rem;margin-bottom:1.1rem;
+  background:rgba(15,23,36,.88);border:1px solid var(--line);border-radius:18px;
+  backdrop-filter:blur(12px);box-shadow:var(--shadow);
 }
-h1{margin:0;font-size:1.15rem;letter-spacing:-0.02em}
-.muted{color:var(--muted);font-size:.85rem}
+.brand{display:flex;align-items:center;gap:.85rem;min-width:0}
+.mark{
+  width:44px;height:44px;border-radius:14px;flex:0 0 auto;
+  display:grid;place-items:center;font-weight:800;font-size:.85rem;color:#fff;
+  background:linear-gradient(145deg,#22c55e 0%,#0f766e 100%);
+  box-shadow:0 10px 24px rgba(34,197,94,.28);
+}
+.title h1{margin:0;font-size:1.15rem;font-weight:750;letter-spacing:-.02em}
+.title p{margin:.18rem 0 0;color:var(--muted);font-size:.82rem}
 .badge{
-  padding:.35rem .75rem;border-radius:999px;border:1px solid var(--line);
-  font-size:.75rem;font-weight:700;color:var(--muted);background:rgba(12,18,30,.8)
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.4rem .8rem;border-radius:999px;font-size:.74rem;font-weight:700;
+  border:1px solid var(--line);background:rgba(15,23,42,.9);color:var(--muted);
 }
-.badge.ok{color:#86efac;border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.1)}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.badge.ok{color:var(--ok);border-color:rgba(74,222,128,.3);background:rgba(22,163,74,.1)}
+.badge.ok::before{background:var(--ok)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.05rem}
+@media(max-width:760px){.stats{grid-template-columns:1fr}.topbar{flex-direction:column;align-items:flex-start}}
+.stat{
+  background:linear-gradient(180deg,rgba(22,32,48,.95),rgba(14,22,34,.95));
+  border:1px solid var(--line);border-radius:14px;padding:.9rem 1rem;
+}
+.stat .k{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.stat .v{margin-top:.35rem;font-size:.98rem;font-weight:700;color:#e2e8f0}
 .rail{
-  display:flex;gap:.35rem;padding:.35rem;margin-bottom:1rem;
-  background:rgba(12,18,30,.85);border:1px solid var(--line);border-radius:999px;flex-wrap:wrap
+  display:flex;gap:.35rem;padding:.35rem;margin-bottom:1.05rem;
+  background:rgba(12,18,30,.8);border:1px solid var(--line);border-radius:999px;
 }
+@media(max-width:760px){.rail{border-radius:16px;flex-wrap:wrap}}
 .step{
-  flex:1;min-width:100px;border:0;background:transparent;color:var(--muted);
-  border-radius:999px;padding:.55rem;font-weight:700;cursor:pointer;transition:background .15s,color .15s
+  flex:1;min-width:110px;border:0;cursor:pointer;background:transparent;color:var(--dim);
+  border-radius:999px;padding:.55rem .7rem;font-size:.78rem;font-weight:700;transition:.18s ease;
 }
-.step.on{background:rgba(34,197,94,.14);color:#bbf7d0}
-.step:hover:not(.on){color:#cbd5e1}
+.step:hover{color:#cbd5e1;background:rgba(148,163,184,.06)}
+.step.on{background:var(--brand-soft);color:#bbf7d0;box-shadow:inset 0 0 0 1px rgba(34,197,94,.35)}
+.step.done{color:#86efac}
 .card{
-  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-  padding:1.2rem 1.25rem;margin-bottom:1rem;box-shadow:0 8px 28px rgba(0,0,0,.16)
+  background:linear-gradient(180deg,rgba(20,30,44,.98),rgba(12,18,30,.98));
+  border:1px solid var(--line);border-radius:var(--radius);padding:1.25rem 1.3rem 1.15rem;
+  margin-bottom:1rem;box-shadow:var(--shadow);
 }
-.card h2{margin:0 0 .35rem;font-size:1.08rem;letter-spacing:-0.02em}
-.card p{margin:0 0 .85rem;color:var(--muted);font-size:.85rem}
-label{display:block;font-size:.78rem;color:#cbd5e1;margin:0 0 .3rem;font-weight:600}
-.field{margin-bottom:.8rem}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-@media(max-width:700px){.row{grid-template-columns:1fr}}
+.card-head{margin-bottom:1rem}
+.card-head h2{margin:0;font-size:1.05rem;font-weight:750;letter-spacing:-.02em}
+.card-head p{margin:.3rem 0 0;color:var(--muted);font-size:.84rem;line-height:1.45}
+label{display:block;font-size:.78rem;font-weight:650;color:#cbd5e1;margin:0 0 .32rem}
+.field{margin-bottom:.85rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+@media(max-width:760px){.row{grid-template-columns:1fr}}
 input,select,textarea{
-  width:100%;background:var(--input);border:1px solid var(--line);border-radius:10px;
-  color:#fff;padding:.7rem .75rem;font-size:.9rem;outline:none;transition:border-color .15s,box-shadow .15s
+  width:100%;background:#0a121d;border:1px solid var(--line);border-radius:12px;
+  color:var(--text);padding:.72rem .88rem;font-size:.9rem;outline:none;
+  transition:border-color .15s, box-shadow .15s;
 }
+input::placeholder,textarea::placeholder{color:#475569}
 input:focus,select:focus,textarea:focus{
-  border-color:rgba(34,197,94,.45);box-shadow:0 0 0 3px rgba(34,197,94,.12)
+  border-color:rgba(34,197,94,.55);box-shadow:0 0 0 4px rgba(34,197,94,.12);
 }
-textarea{min-height:4.5rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem}
-.btn{
-  border:0;border-radius:10px;padding:.7rem 1.05rem;font-weight:700;cursor:pointer;
-  transition:background .15s,border-color .15s,transform .08s
+textarea{min-height:5rem;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem}
+.hint{color:var(--dim);font-size:.76rem;margin-top:.3rem;line-height:1.4}
+.callout{
+  display:flex;gap:.7rem;align-items:flex-start;
+  background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);
+  border-radius:13px;padding:.8rem .9rem;margin:.2rem 0 1rem;
 }
-.btn:active{transform:translateY(1px)}
-.btn-primary{background:var(--brand);color:#fff}
-.btn-primary:hover{background:var(--brand-d)}
-.btn-ghost{background:transparent;border:1px solid var(--line);color:#cbd5e1}
-.btn-ghost:hover{border-color:rgba(34,197,94,.35);color:#fff}
-.actions,.nav{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
-.nav{justify-content:space-between}
-.panel{display:none}.panel.on{display:block}.hidden{display:none!important}
-.check{display:flex;align-items:center;gap:.5rem;margin:.5rem 0;font-size:.86rem}.check input{width:auto}
-.probe{
-  display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;
-  margin:.5rem 0;padding:.8rem;border-radius:10px;border:1px solid var(--line);background:var(--input)
+.callout .ic{
+  width:28px;height:28px;border-radius:8px;flex:0 0 auto;
+  display:grid;place-items:center;background:rgba(34,197,94,.15);color:#86efac;font-size:.85rem;
 }
-.probe .msg{font-size:.82rem;color:var(--muted);flex:1}
 .terms-box{
-  max-height:180px;overflow:auto;margin:.35rem 0 .65rem;padding:.85rem .95rem;
-  background:var(--input);border:1px solid var(--line);border-radius:12px;color:#cbd5e1;
-  font-size:.78rem;line-height:1.5;white-space:pre-wrap
+  max-height:140px;overflow:auto;padding:.85rem 1rem;margin:.4rem 0 .6rem;
+  background:#0a121d;border:1px solid var(--line);border-radius:12px;
+  font-size:.8rem;line-height:1.5;color:#cbd5e1;white-space:pre-wrap;
 }
+.terms-accept{display:flex;align-items:flex-start;gap:.55rem;color:#cbd5e1;font-size:.86rem;margin:.5rem 0}
+.terms-accept input{width:auto;margin-top:.2rem;accent-color:var(--brand)}
 .terms-box.collapsed{max-height:72px;opacity:.85}
 .terms-note{
-  margin:.35rem 0 .6rem;padding:.65rem .8rem;border-radius:10px;font-size:.8rem;line-height:1.4;
-  color:#86efac;background:rgba(22,163,74,.1);border:1px solid rgba(74,222,128,.28)
+  font-size:.78rem;color:var(--ok);margin:.35rem 0 .5rem;padding:.4rem .65rem;
+  background:rgba(34,197,94,.08);border-radius:8px;border:1px solid rgba(34,197,94,.2);
 }
 .terms-note.hidden{display:none!important}
-.terms-accept{display:flex;align-items:flex-start;gap:.55rem;color:#cbd5e1;font-size:.86rem;margin:.5rem 0}
-.terms-accept input{width:auto;margin-top:.2rem}
-pre.status{
-  margin:0;white-space:pre-wrap;font-size:.76rem;color:var(--muted);max-height:200px;overflow:auto;
-  background:var(--input);border:1px solid var(--line);border-radius:10px;padding:.85rem
+.actions{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:1rem}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+  border:1px solid var(--line);border-radius:12px;padding:.68rem 1.05rem;
+  font-size:.86rem;font-weight:700;cursor:pointer;background:#0f1a28;color:#f1f5f9;
+  transition:background .15s,border-color .15s,box-shadow .15s;
 }
-.stor-row{
-  display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.65rem .7rem;
-  border:1px solid var(--line);border-radius:10px;margin-bottom:.45rem;font-size:.8rem;background:var(--input)
+.btn:hover{background:#132033;border-color:rgba(34,197,94,.35)}
+.btn-primary{background:var(--brand);border-color:transparent;color:#fff}
+.btn-primary:hover{background:var(--brand2);box-shadow:0 8px 22px rgba(34,197,94,.28)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.msg{margin-top:.75rem;padding:.65rem .85rem;border-radius:10px;font-size:.84rem;display:none}
+.msg.show{display:block}
+.msg.ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:#bbf7d0}
+.msg.err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);color:#fecaca}
+.backups-list{margin-top:.75rem}
+.backup-row{
+  display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+  padding:.75rem 1rem;margin-bottom:.45rem;
+  background:#0a121d;border:1px solid var(--line);border-radius:12px;font-size:.84rem;
 }
-.toast{
-  position:fixed;right:1rem;bottom:1rem;max-width:320px;background:rgba(15,23,42,.96);
-  border:1px solid var(--line);border-radius:12px;padding:.85rem;font-size:.86rem;
-  box-shadow:0 12px 40px rgba(0,0,0,.35)
-}
-.toast.hidden{display:none!important}
-.toast.ok{border-color:rgba(34,197,94,.45)}
-.toast.bad{border-color:rgba(248,113,113,.45)}
-.foot{text-align:center;color:var(--muted);font-size:.75rem;margin-top:1.25rem}
+.backup-row .meta{color:var(--muted);font-size:.78rem}
+.backup-actions{display:flex;gap:.4rem}
+.check{display:flex;align-items:flex-start;gap:.5rem;font-size:.84rem;color:#cbd5e1;margin:.4rem 0}
+.check input{width:auto;margin-top:.15rem;accent-color:var(--brand)}
+.hidden{display:none!important}
 </style>
 </head>
 <body>
 <div class="shell">
-  <header class="topbar">
-    <div><h1>VaultBackup Agent</h1><div class="muted">Private database backups to storage you control</div></div>
-    <div id="status-pill" class="badge">Starting…</div>
-  </header>
-  <nav class="rail">
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">VB</div>
+      <div class="title">
+        <h1>VaultBackup Agent</h1>
+        <p>Private database backups to storage you control</p>
+      </div>
+    </div>
+    <div class="badge" id="status-pill">Checking…</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">License</div><div class="v" id="stat-license">—</div></div>
+    <div class="stat"><div class="k">Next run</div><div class="v" id="stat-next">—</div></div>
+    <div class="stat"><div class="k">Last status</div><div class="v" id="stat-last">—</div></div>
+  </div>
+
+  <div class="rail" role="tablist">
     <button type="button" class="step on" data-step="1">1 · Welcome</button>
     <button type="button" class="step" data-step="2">2 · Database</button>
     <button type="button" class="step" data-step="3">3 · Destination</button>
     <button type="button" class="step" data-step="4">4 · Review</button>
-  </nav>
-  <div class="panel on" data-panel="1">
-    <div class="card">
-      <h2>Welcome</h2>
-      <p>Name this agent, set schedule, and accept the license agreement.</p>
-      <div class="field"><label for="name">Agent name</label><input id="name" placeholder="office-postgres-1"/></div>
-      <div class="row">
-        <div class="field"><label for="schedule">Schedule (cron)</label><input id="schedule" placeholder="0 3 * * *"/></div>
-        <div class="field"><label for="retention">Retention (days)</label><input id="retention" type="number" min="1" value="14"/></div>
+  </div>
+
+  <form id="cfg-form" autocomplete="off">
+    <!-- Step 1: Welcome -->
+    <div class="card" data-panel="1">
+      <div class="card-head">
+        <h2>Welcome</h2>
+        <p>Name this agent, set schedule, and accept the license agreement.</p>
       </div>
-      <div class="field"><label for="token">Agent token</label><input id="token" type="password" placeholder="Leave blank to keep"/></div>
+      <div class="field">
+        <label for="agent_name">Agent name</label>
+        <input id="agent_name" name="agent_name" placeholder="office-postgres-1" required/>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="schedule">Schedule (cron)</label>
+          <input id="schedule" name="schedule" placeholder="0 3 * * *" value="0 3 * * *"/>
+        </div>
+        <div class="field">
+          <label for="retention_days">Retention (days)</label>
+          <input id="retention_days" name="retention_days" type="number" min="1" value="14"/>
+        </div>
+      </div>
+      <div class="field">
+        <label for="token">Agent token</label>
+        <input id="token" name="token" type="password" placeholder="Paste token from console" autocomplete="off"/>
+        <div class="hint">Create a token under Desktop Agents in the console. Shown only once.</div>
+      </div>
       <div class="field">
         <label>End-User License Agreement</label>
         <div class="terms-box" id="terms-text">Loading license agreement…</div>
@@ -150,101 +199,152 @@ pre.status{
           <input type="checkbox" id="terms_accept"/>
           <span>I have read and agree to the VaultBackup Agent EULA and Terms of Use.</span>
         </label>
-        <div class="muted" style="font-size:.76rem;margin-top:.25rem">Required once per agent. You will be asked again only if the agreement is updated.</div>
       </div>
-      <div class="nav"><span></span><button type="button" class="btn btn-primary" id="next-1">Continue</button></div>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="next-1">Continue</button>
+      </div>
     </div>
-  </div>
-  <div class="panel" data-panel="2">
-    <div class="card">
-      <h2>Database</h2>
-      <p>Point this agent at a database reachable from this machine.</p>
+
+    <!-- Step 2: Database -->
+    <div class="card hidden" data-panel="2">
+      <div class="card-head">
+        <h2>Database</h2>
+        <p>Connection details for the database this agent will back up.</p>
+      </div>
       <div class="row">
-        <div class="field"><label for="db_type">Engine</label>
-          <select id="db_type">
+        <div class="field">
+          <label for="db_engine">Engine</label>
+          <select id="db_engine" name="db_engine">
             <option value="postgres">PostgreSQL</option>
             <option value="mysql">MySQL / MariaDB</option>
             <option value="mssql">SQL Server</option>
-            <option value="mongodb">MongoDB</option>
-            <option value="redis">Redis</option>
             <option value="sqlite">SQLite</option>
-            <option value="files">Files</option>
-            <option value="command">Custom command</option>
           </select>
         </div>
-        <div class="field"><label for="backup_type">Backup type</label>
-          <select id="backup_type"><option value="full">Full</option><option value="schema">Schema only</option></select>
+        <div class="field">
+          <label for="db_host">Host</label>
+          <input id="db_host" name="db_host" placeholder="127.0.0.1"/>
         </div>
       </div>
-      <div class="field"><label for="db_uri">Connection URI</label><textarea id="db_uri" placeholder="postgres://user:pass@127.0.0.1:5432/db"></textarea></div>
-      <div class="probe"><div class="msg" id="db-probe-msg">Test the connection before continuing.</div><button type="button" class="btn btn-ghost" id="btn-test-db">Test connection</button></div>
-      <div class="nav"><button type="button" class="btn btn-ghost" id="back-2">Back</button><button type="button" class="btn btn-primary" id="next-2">Continue</button></div>
+      <div class="row">
+        <div class="field">
+          <label for="db_port">Port</label>
+          <input id="db_port" name="db_port" placeholder="5432"/>
+        </div>
+        <div class="field">
+          <label for="db_name">Database</label>
+          <input id="db_name" name="db_name" placeholder="app"/>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="db_user">User</label>
+          <input id="db_user" name="db_user"/>
+        </div>
+        <div class="field">
+          <label for="db_password">Password</label>
+          <input id="db_password" name="db_password" type="password" autocomplete="new-password"/>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn" data-prev="1">Back</button>
+        <button type="button" class="btn" id="btn-test-db">Test connection</button>
+        <button type="button" class="btn btn-primary" id="next-2">Continue</button>
+      </div>
+      <div class="msg" id="msg-db"></div>
     </div>
-  </div>
-  <div class="panel" data-panel="3">
-    <div class="card">
-      <h2>Destination</h2>
-      <p>Backups write directly to your storage.</p>
-      <div class="field"><label for="dest_mode">Storage type</label>
-        <select id="dest_mode">
-          <option value="local">Local folder</option>
-          <option value="s3">S3 compatible</option>
+
+    <!-- Step 3: Destination -->
+    <div class="card hidden" data-panel="3">
+      <div class="card-head">
+        <h2>Destination</h2>
+        <p>Where encrypted backup objects are written. Bytes never pass through VaultBackup.</p>
+      </div>
+      <div class="field">
+        <label for="dest_type">Storage type</label>
+        <select id="dest_type" name="dest_type">
+          <option value="s3">S3 / R2 / B2 / MinIO / Wasabi</option>
           <option value="azure">Azure Blob</option>
-          <option value="webdav">WebDAV</option>
+          <option value="webdav">WebDAV / Nextcloud</option>
           <option value="sftp">SFTP</option>
+          <option value="local">Local disk</option>
         </select>
       </div>
-      <div id="dest-local"><div class="field"><label for="local_dir">Folder</label><input id="local_dir" placeholder="/var/lib/vaultbackup/backups"/></div></div>
-      <div id="dest-s3" class="hidden">
-        <div class="row"><div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint"/></div><div class="field"><label for="s3_region">Region</label><input id="s3_region"/></div></div>
-        <div class="row"><div class="field"><label for="s3_bucket">Bucket</label><input id="s3_bucket"/></div><div class="field"><label for="s3_prefix">Prefix</label><input id="s3_prefix"/></div></div>
-        <div class="row"><div class="field"><label for="s3_access_key">Access key</label><input id="s3_access_key"/></div><div class="field"><label for="s3_secret_key">Secret key</label><input id="s3_secret_key" type="password"/></div></div>
+      <div id="dest-s3" class="dest-panel">
+        <div class="field"><label for="s3_endpoint">Endpoint (optional)</label><input id="s3_endpoint" name="s3_endpoint" placeholder="https://s3.amazonaws.com"/></div>
+        <div class="row">
+          <div class="field"><label for="s3_bucket">Bucket</label><input id="s3_bucket" name="s3_bucket"/></div>
+          <div class="field"><label for="s3_region">Region</label><input id="s3_region" name="s3_region" placeholder="us-east-1"/></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="s3_access_key">Access key</label><input id="s3_access_key" name="s3_access_key"/></div>
+          <div class="field"><label for="s3_secret_key">Secret key</label><input id="s3_secret_key" name="s3_secret_key" type="password"/></div>
+        </div>
+        <div class="field"><label for="s3_prefix">Prefix</label><input id="s3_prefix" name="s3_prefix" placeholder="backups/"/></div>
       </div>
-      <div id="dest-azure" class="hidden">
-        <div class="row"><div class="field"><label for="azure_account">Account</label><input id="azure_account"/></div><div class="field"><label for="azure_container">Container</label><input id="azure_container"/></div></div>
-        <div class="field"><label for="azure_key">Key</label><input id="azure_key" type="password"/></div>
-        <div class="field"><label for="azure_prefix">Prefix</label><input id="azure_prefix"/></div>
+      <div id="dest-azure" class="dest-panel hidden">
+        <div class="field"><label for="azure_account">Account</label><input id="azure_account" name="azure_account"/></div>
+        <div class="field"><label for="azure_key">Account key</label><input id="azure_key" name="azure_key" type="password"/></div>
+        <div class="field"><label for="azure_container">Container</label><input id="azure_container" name="azure_container"/></div>
+        <div class="field"><label for="azure_prefix">Prefix</label><input id="azure_prefix" name="azure_prefix" placeholder="backups/"/></div>
       </div>
-      <div id="dest-webdav" class="hidden">
-        <div class="field"><label for="webdav_url">URL</label><input id="webdav_url"/></div>
-        <div class="row"><div class="field"><label for="webdav_user">User</label><input id="webdav_user"/></div><div class="field"><label for="webdav_password">Password</label><input id="webdav_password" type="password"/></div></div>
+      <div id="dest-webdav" class="dest-panel hidden">
+        <div class="field"><label for="webdav_url">URL</label><input id="webdav_url" name="webdav_url" placeholder="https://nextcloud.example/remote.php/dav/files/user/"/></div>
+        <div class="row">
+          <div class="field"><label for="webdav_user">User</label><input id="webdav_user" name="webdav_user"/></div>
+          <div class="field"><label for="webdav_password">Password / app password</label><input id="webdav_password" name="webdav_password" type="password"/></div>
+        </div>
       </div>
-      <div id="dest-sftp" class="hidden">
-        <div class="row"><div class="field"><label for="sftp_host">Host</label><input id="sftp_host"/></div><div class="field"><label for="sftp_user">User</label><input id="sftp_user"/></div></div>
-        <div class="field"><label for="sftp_path">Path</label><input id="sftp_path" placeholder="/backups"/></div>
-        <div class="row"><div class="field"><label for="sftp_password">Password</label><input id="sftp_password" type="password"/></div><div class="field"><label for="sftp_key_file">Key file</label><input id="sftp_key_file"/></div></div>
-        <label class="check"><input type="checkbox" id="sftp_insecure"/> Skip host-key check (sftp_insecure — lab only)</label>
+      <div id="dest-sftp" class="dest-panel hidden">
+        <div class="row">
+          <div class="field"><label for="sftp_host">Host</label><input id="sftp_host" name="sftp_host"/></div>
+          <div class="field"><label for="sftp_port">Port</label><input id="sftp_port" name="sftp_port" value="22"/></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="sftp_user">User</label><input id="sftp_user" name="sftp_user"/></div>
+          <div class="field"><label for="sftp_password">Password (or leave blank for key)</label><input id="sftp_password" name="sftp_password" type="password"/></div>
+        </div>
+        <div class="field"><label for="sftp_path">Remote path</label><input id="sftp_path" name="sftp_path" placeholder="/backups"/></div>
+        <label class="check"><input type="checkbox" id="sftp_insecure"/> Skip host-key check (sftp_insecure — only for first deploy / lab)</label>
       </div>
-      <div class="probe"><div class="msg" id="dest-probe-msg">Test the destination before saving.</div><button type="button" class="btn btn-ghost" id="btn-test-dest">Test connection</button></div>
-      <label class="check"><input type="checkbox" id="encrypt" checked/> Encrypt backups (AES)</label>
-      <div class="nav"><button type="button" class="btn btn-ghost" id="back-3">Back</button><button type="button" class="btn btn-primary" id="next-3">Continue</button></div>
-    </div>
-  </div>
-  <div class="panel" data-panel="4">
-    <div class="card">
-      <h2>Review and go live</h2>
-      <p>Save configuration, check license, or run a one-off backup.</p>
+      <div id="dest-local" class="dest-panel hidden">
+        <div class="field"><label for="local_path">Directory</label><input id="local_path" name="local_path" placeholder="/var/backups/vaultbackup"/></div>
+      </div>
       <div class="actions">
-        <button type="button" class="btn btn-primary" id="btn-save">Save configuration</button>
-        <button type="button" class="btn btn-ghost" id="btn-license">Check license</button>
-        <button type="button" class="btn btn-ghost" id="btn-run">Run backup once</button>
+        <button type="button" class="btn" data-prev="2">Back</button>
+        <button type="button" class="btn" id="btn-test-dest">Test destination</button>
+        <button type="button" class="btn btn-primary" id="next-3">Continue</button>
       </div>
-      <div class="nav"><button type="button" class="btn btn-ghost" id="back-4">Back</button><span></span></div>
+      <div class="msg" id="msg-dest"></div>
     </div>
-    <div class="card"><h2>Live status</h2><pre id="status" class="status">—</pre></div>
-    <div class="card"><h2>Recent history</h2><div id="history" class="muted">No history yet.</div></div>
-    <div class="card">
+
+    <!-- Step 4: Review -->
+    <div class="card hidden" data-panel="4">
+      <div class="card-head">
+        <h2>Review and go live</h2>
+        <p>Save configuration, verify license, and run a first backup.</p>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn" data-prev="3">Back</button>
+        <button type="button" class="btn btn-primary" id="btn-save">Save configuration</button>
+        <button type="button" class="btn" id="btn-license">Check license</button>
+        <button type="button" class="btn" id="btn-run">Run backup once</button>
+      </div>
+      <div class="msg" id="msg-review"></div>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="card-head">
       <h2>Stored backups</h2>
-      <p class="muted">List / restore / delete objects on your destination.</p>
-      <div class="actions"><button type="button" class="btn btn-ghost" id="btn-refresh-storage">Refresh list</button></div>
-      <div id="storage-list" class="muted" style="margin-top:.75rem">No objects listed yet.</div>
+      <p>List / restore / delete objects on your destination</p>
     </div>
+    <div class="actions">
+      <button type="button" class="btn" id="btn-list-backups">Refresh list</button>
+    </div>
+    <div class="backups-list" id="backups-list"></div>
   </div>
-  <div class="foot">VaultBackup Agent · backups stay on your storage</div>
-  <div id="toast" class="toast hidden"></div>
 </div>
-<script nonce="__CSP_NONCE__">
-__APP_JS__
-</script>
+<script src="/app.js"></script>
 </body>
 </html>
