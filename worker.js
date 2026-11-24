@@ -6938,6 +6938,8 @@ async function route(request, env, ctx) {
       "- SQL Server backup: https://backup.enadoctemp.workers.dev/docs/sql-server-backup",
       "- PostgreSQL backup: https://backup.enadoctemp.workers.dev/docs/postgresql-backup",
       "- MySQL and MariaDB backup: https://backup.enadoctemp.workers.dev/docs/mysql-backup",
+      "- MongoDB backup: https://backup.enadoctemp.workers.dev/docs/mongodb-backup",
+      "- Redis backup: https://backup.enadoctemp.workers.dev/docs/redis-backup",
       "- Support: https://backup.enadoctemp.workers.dev/docs/support",
       "- Sitemap: https://backup.enadoctemp.workers.dev/sitemap.xml",
       "",
