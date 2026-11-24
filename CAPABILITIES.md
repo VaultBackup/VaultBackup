@@ -1,6 +1,6 @@
 # VaultBackup Agent — capability matrix
 
-**Version:** 1.2.9+  
+**Version:** 1.3.0+  
 **Downloads:** https://backup.enadoctemp.workers.dev/install  
 **Windows MSI:** https://backup.enadoctemp.workers.dev/download/windows-msi  
 **Support:** [docs/SUPPORT.md](docs/SUPPORT.md)
@@ -72,6 +72,28 @@ Most engines use **built-in pure-Go dumps** first (no `mysqldump` / `pg_dump` re
 
 Not claimed as full enterprise coverage for AS/400 BRMS/SAVSYS or Oracle physical RMAN fleets.
 
+## Backup catalog & restore
+
+Every successful backup writes a **sidecar catalog** object:
+
+| Artifact | Location | Purpose |
+|----------|----------|---------|
+| Payload | destination (`*.sql.gz`, `*.vbenc`, …) | Encrypted or plain dump |
+| Manifest | `<payload>.manifest.json` | Engine, kind, size, chain id, restore notes |
+| Chain state | agent work dir `chain.json` | Last full key / sequence (foundation for incremental & PITR) |
+
+**Supported `backup_type` today:** `full` (default), `schema` / `schema-only`.
+
+**Reserved (not implemented yet):** `incremental`, `differential`, `log` (WAL/binlog/trn). Requesting them returns a clear error — the catalog/chain is ready for a future release.
+
+**Restore:**
+
+- CLI: `-restore <local-or-remote-key> [-restore-out path]` — downloads if needed, decrypts `.vbenc`, prints manifest hints when present.
+- Web UI / API: `POST /api/backups/get` with `{ "key": "…" }` — downloads into work dir; decrypts when encrypted; returns `notes` from the manifest when available.
+- List: `GET /api/backups` omits `.manifest.json` sidecars and includes `chain` summary + `manifest_key` per object.
+
+PITR (point-in-time recovery via native WAL/binlog/transaction logs) is **not** implemented. Recovery model is restore of a full/schema object, then apply with engine tools.
+
 ## Destinations (direct upload)
 
 Backup data is written **directly** to your storage. The Worker is used for **license / control plane only** — not as a transit path for dump bytes.
@@ -105,7 +127,7 @@ Presets: [docs/STORAGE.md](docs/STORAGE.md).
 
 ```bash
 cd agent
-go test ./internal/config/ ./internal/errcode/
+go test ./internal/config/ ./internal/errcode/ ./internal/backup/
 GOOS=linux   GOARCH=amd64 go build -o ../vaultbackup-agent-linux-amd64 ./cmd/agent
 GOOS=windows GOARCH=amd64 go build -o ../vaultbackup-agent-windows-amd64.exe ./cmd/agent
 GOOS=darwin  GOARCH=arm64 go build -o ../vaultbackup-agent-darwin-arm64 ./cmd/agent
