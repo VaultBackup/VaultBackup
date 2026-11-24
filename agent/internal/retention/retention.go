@@ -23,19 +23,22 @@ type Policy struct {
 func IsBackupArtifact(name string) bool {
 	base := strings.ToLower(filepath.Base(name))
 	switch base {
-	case "agent.key", "agent.log", "history.json", "config.yaml", "config.json":
+	case "agent.key", "agent.log", "history.json", "config.yaml", "config.json", "chain.json":
 		return false
 	}
 	if strings.HasPrefix(base, "backup-") {
 		return true
 	}
-	for _, suf := range []string{".sql", ".sql.gz", ".dump", ".archive", ".vbenc", ".gz", ".zip", ".bak", ".db.gz"} {
+	for _, suf := range []string{".sql", ".sql.gz", ".dump", ".archive", ".vbenc", ".gz", ".zip", ".bak", ".db.gz", ".manifest.json"} {
 		if strings.HasSuffix(base, suf) {
 			return true
 		}
 	}
 	return false
 }
+
+// deprecated alias kept for any in-package call sites
+func isBackupArtifact(name string) bool { return IsBackupArtifact(name) }
 
 // Apply removes old backup artifacts in dir according to the policy (or Keep N).
 func (p Policy) Apply(dir string) error {
@@ -52,7 +55,7 @@ func (p Policy) Apply(dir string) error {
 		if e.IsDir() {
 			continue
 		}
-		if !IsBackupArtifact(e.Name()) {
+		if !isBackupArtifact(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
