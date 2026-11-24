@@ -37,7 +37,7 @@ ul,ol{margin:.4rem 0;padding-left:1.2rem}li{margin:.4rem 0}
 .site-footer h3{margin:0 0 .6rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:#64748b}
 .site-footer a{display:block;color:var(--muted);font-size:.875rem;margin:.35rem 0;text-decoration:none}
 .site-footer a:hover{color:#fff}
-.site-footer .legal{grid-column:1/-1;border-top:1px solid var(--border);padding-top:1rem;font-size:.8rem;color:#64748b;display:flex;flex-wrap:wrap;gap:.75rem 1.25rem;justify-content:space-between}
+.site-footer .legal{grid-column:1/-1;border-top:1px solid var(--border);padding-top:1rem;font-size:.8rem;color:#64748b;display:flex;flex-wrap:wrap;gap:.75rem 1.25rem;justify-content:space-between}\n.faq details{border-top:1px solid var(--border);padding:.85rem 0}.faq summary{cursor:pointer;color:#e2e8f0;font-weight:650}.faq details p{margin:.55rem 0 0;color:var(--muted)}
 `;
 
 function page(title, description, path, body, faq = []) {
@@ -80,6 +80,8 @@ function page(title, description, path, body, faq = []) {
     })),
   });
   const ld = graph.map(jsonLd).join("\n");
+  const escapeHtml = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  const faqHtml = faq.length ? `<section class="card faq" aria-labelledby="faq-title"><h2 id="faq-title">Frequently asked questions</h2>${faq.map(([question, answer]) => `<details><summary>${escapeHtml(question)}</summary><p>${escapeHtml(answer)}</p></details>`).join("")}</section>` : "";
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8">
@@ -89,9 +91,9 @@ function page(title, description, path, body, faq = []) {
 <meta name="robots" content="index,follow">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <link rel="canonical" href="${canonical}">
-<meta property="og:title" content="${title} | VaultBackup">
+<meta property="og:type" content="website">\n<meta property="og:url" content="${canonical}">\n<meta property="og:site_name" content="VaultBackup">\n<meta property="og:title" content="${title} | VaultBackup">
 <meta property="og:description" content="${description}">
-<meta property="og:image" content="https://backup.enadoctemp.workers.dev/og.svg">
+<meta property="og:image" content="https://backup.enadoctemp.workers.dev/og.svg">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="${title} | VaultBackup">\n<meta name="twitter:description" content="${description}">\n<meta name="twitter:image" content="https://backup.enadoctemp.workers.dev/og.svg">
 ${ld}
 <style>${SHELL_CSS}</style></head><body>
 <div class="topbar"><div class="topbar-inner">
@@ -105,7 +107,7 @@ ${ld}
     <a class="cta" href="/">Sign in</a>
   </nav>
 </div></div>
-<main>${body}</main>
+<main>${body}${faqHtml}</main>
 <footer class="site-footer"><div class="site-footer-inner">
   <div><a class="brand" href="/" style="margin-bottom:.75rem"><img src="/icon.svg" width="28" height="28" alt=""><div><span>VaultBackup</span><small>Your data. Your storage.</small></div></a>
   <p class="muted" style="margin:0;font-size:.875rem">Encrypted database backups for SMBs and accounting firms.</p></div>
