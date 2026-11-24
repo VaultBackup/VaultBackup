@@ -17,7 +17,7 @@ if (s.includes('"Allow: /install"') && !s.includes('"Allow: /docs"')) {
 }
 
 const sitemapLine = 'const urls = ["/", "/install", "/download", "/agent", "/llms.txt"];';
-const expandedLine = 'const urls = ["/", "/install", "/docs", "/docs/about", "/docs/product", "/docs/agent", "/docs/storage", "/docs/security", "/docs/restore", "/docs/support", "/docs/privacy", "/docs/accounting-firms", "/docs/sql-server-backup", "/docs/postgresql-backup", "/docs/mysql-backup"];';
+const expandedLine = 'const urls = ["/", "/install", "/docs", "/docs/about", "/docs/product", "/docs/agent", "/docs/storage", "/docs/security", "/docs/restore", "/docs/support", "/docs/privacy", "/docs/accounting-firms", "/docs/sql-server-backup", "/docs/postgresql-backup", "/docs/mysql-backup", "/docs/mongodb-backup", "/docs/redis-backup"];';
 if (s.includes(sitemapLine)) {
   s = s.replace(sitemapLine, expandedLine);
   console.log("sitemap expanded with canonical public content pages");
