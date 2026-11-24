@@ -3,8 +3,6 @@ package db
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -18,7 +16,7 @@ type Result struct {
 	Error     string
 }
 
-// ChainState tracks incremental/differential base (legacy; prefer backup.ChainState).
+// ChainState tracks incremental/differential base.
 type ChainState struct {
 	LastFull time.Time `json:"last_full"`
 	LastIncr time.Time `json:"last_incr"`
@@ -67,11 +65,12 @@ func NormalizeType(t string) string {
 }
 
 // Dump runs a backup for the given type/uri into workDir.
+// Prefer DumpWithOptions when VSS or native-tool flags are needed.
 func Dump(workDir, dbType, uri, backupType string) (Result, error) {
 	return DumpWithOptions(workDir, dbType, uri, DefaultOptions(backupType))
 }
 
-// DumpWithOptions runs a backup with platform options (VSS, native tools, schema-only, …).
+// DumpWithOptions runs a backup with platform options (VSS, native tools, …).
 func DumpWithOptions(workDir, dbType, uri string, opts Options) (Result, error) {
 	start := time.Now()
 	t := NormalizeType(dbType)
