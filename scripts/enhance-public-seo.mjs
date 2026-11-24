@@ -16,15 +16,14 @@ if (s.includes('"Allow: /install"') && !s.includes('"Allow: /docs"')) {
   console.log("robots: allow /docs/about");
 }
 
-if (s.includes('const urls = ["/", "/install", "/download", "/agent", "/llms.txt"];')) {
-  s = s.replace(
-    'const urls = ["/", "/install", "/download", "/agent", "/llms.txt"];',
-    'const urls = ["/", "/install", "/docs", "/docs/about", "/docs/product", "/docs/agent", "/docs/storage", "/docs/security", "/docs/restore", "/docs/support", "/docs/privacy", "/download", "/agent", "/llms.txt"];'
-  );
-  console.log("sitemap expanded");
-} else if (s.includes('"/docs/product"') && !s.includes('"/docs/about"')) {
-  s = s.replace('"/docs", "/docs/product"', '"/docs", "/docs/about", "/docs/product"');
-  console.log("sitemap: added about");
+const sitemapLine = 'const urls = ["/", "/install", "/download", "/agent", "/llms.txt"];';
+const expandedLine = 'const urls = ["/", "/install", "/docs", "/docs/about", "/docs/product", "/docs/agent", "/docs/storage", "/docs/security", "/docs/restore", "/docs/support", "/docs/privacy", "/docs/accounting-firms", "/docs/sql-server-backup", "/docs/postgresql-backup", "/docs/mysql-backup"];';
+if (s.includes(sitemapLine)) {
+  s = s.replace(sitemapLine, expandedLine);
+  console.log("sitemap expanded with canonical public content pages");
+} else if (s.includes('const urls = [')) {
+  s = s.replace(/const urls = \[[^\]]*\];/, expandedLine);
+  console.log("sitemap normalized to canonical public content pages");
 }
 
 if (s.includes('const pri = u === "/" ? "1.0" : u === "/install" ? "0.9" : "0.7";')) {
