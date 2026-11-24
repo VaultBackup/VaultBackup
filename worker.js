@@ -390,6 +390,12 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
   background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25);
 }
 
+.vb-cinematic{position:relative;isolation:isolate;overflow:hidden;min-height:590px;padding:2.35rem!important;background:radial-gradient(ellipse at 12% 10%,rgba(27,184,125,.22),transparent 42%),radial-gradient(ellipse at 95% 75%,rgba(56,189,248,.12),transparent 40%),linear-gradient(145deg,#071b1b 0%,#071321 52%,#050b17 100%)!important}
+.vb-cinematic:before{content:"";position:absolute;inset:0;z-index:-1;opacity:.18;background-image:linear-gradient(rgba(148,163,184,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.12) 1px,transparent 1px);background-size:38px 38px;mask-image:linear-gradient(to bottom,black,transparent 85%)}
+.vb-cinematic:after{content:"";position:absolute;width:340px;height:340px;right:-190px;top:34%;border:1px solid rgba(45,212,191,.14);border-radius:50%;box-shadow:0 0 0 34px rgba(45,212,191,.025),0 0 0 72px rgba(45,212,191,.02);pointer-events:none}
+.vb-brand-copy{position:relative;z-index:1}.vb-hero-title{font-size:clamp(2.5rem,4.5vw,3.6rem)!important;line-height:.99!important;letter-spacing:-.065em!important;font-weight:750!important;margin-top:1.2rem!important}.vb-hero-title span{color:#6ee7b7}.vb-hero-copy{max-width:440px;font-size:.93rem!important;line-height:1.65!important;color:#a9bac8!important}
+.vb-live-dot,.vb-demo-top i,.vb-demo-status i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 12px #34d399}.vb-demo{position:relative;margin-top:1.8rem;padding:1rem;border:1px solid rgba(148,163,184,.2);border-radius:18px;background:linear-gradient(145deg,rgba(13,28,41,.92),rgba(5,15,27,.88));box-shadow:0 24px 65px rgba(0,0,0,.38),inset 0 1px rgba(255,255,255,.05);backdrop-filter:blur(16px);overflow:hidden}.vb-demo-top,.vb-demo-foot{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.58rem;letter-spacing:.12em;color:#8da2b4;font-weight:700}.vb-demo-top span:first-child{display:flex;align-items:center;gap:.5rem}.vb-demo-time{font-variant-numeric:tabular-nums;color:#5eead4}.vb-demo-flow{display:grid;grid-template-columns:1fr 28px 1fr 28px 1fr;align-items:center;gap:.2rem;margin:1.3rem 0 1rem}.vb-demo-node{min-width:0;min-height:104px;padding:.65rem .35rem;border-radius:12px;border:1px solid rgba(148,163,184,.2);background:rgba(15,31,46,.85);display:flex;align-items:center;flex-direction:column;justify-content:center;text-align:center;gap:.25rem}.vb-node-icon{font-size:1.35rem;color:#a7f3d0}.vb-demo-node b{font-size:.53rem;letter-spacing:.07em;color:#e2e8f0}.vb-demo-node small{font-size:.55rem;color:#91a4b7;white-space:nowrap}.vb-demo-node em{font-size:.53rem;font-style:normal;color:#6ee7b7}.vb-secure{border-color:rgba(45,212,191,.35);background:linear-gradient(145deg,rgba(13,78,75,.32),rgba(15,31,46,.8))}.vb-demo-link{position:relative;height:2px;background:rgba(148,163,184,.22)}.vb-link-line{position:absolute;inset:0;background:linear-gradient(90deg,transparent,#5eead4,transparent);transform:scaleX(.4);transform-origin:left}.vb-packet{position:absolute;z-index:2;top:-3px;left:0;width:7px;height:7px;border-radius:50%;background:#a7f3d0;box-shadow:0 0 14px #5eead4}.vb-demo-progress{height:3px;background:rgba(148,163,184,.14);border-radius:9px;overflow:hidden}.vb-demo-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#0d9488,#6ee7b7);box-shadow:0 0 12px rgba(45,212,191,.7)}.vb-demo-foot{margin-top:.7rem;letter-spacing:.03em;font-size:.58rem}.vb-demo-status{display:flex;align-items:center;gap:.4rem;color:#a7f3d0}.vb-proof-row{display:flex;justify-content:space-between;gap:.4rem;margin-top:1rem;color:#71879a;font-size:.55rem;letter-spacing:.12em;font-weight:700}.vb-brand-bottom{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding-top:1.2rem}.vb-brand-bottom>span{font-size:.63rem;color:#71879a}.vb-brand-bottom .vb-link-muted{color:#a7f3d0;font-size:.75rem}
+@media(max-width:767px){.vb-cinematic{display:none!important}}@media(prefers-reduced-motion:reduce){.vb-demo *{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white">
@@ -397,19 +403,28 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
     <!-- Auth screen -->
     <div id="auth-view" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
         <div class="vb-auth-shell w-full">
-            <div class="vb-auth-brand">
-                <div>
-                    <div class="vb-chip mb-4">Serverless · Edge</div>
-                    <h2>Database backups that run at the edge</h2>
-                    <p class="mt-2">Inexpensive encrypted database backups for SMBs and accounting firms — to your own S3, Backblaze B2, Wasabi, or local disk. Desktop agent for private office databases.</p>
-                    <ul class="vb-auth-points">
-                        <li><span class="icon">1</span><span>Connect public databases or install a desktop agent for private hosts.</span></li>
-                        <li><span class="icon">2</span><span>Store dumps in R2, S3, or your bucket with client-side encryption keys on the Worker.</span></li>
-                        <li><span class="icon">3</span><span>Restore chains, retention policies, and live agent health in one console.</span></li>
-                    </ul>
+            <div class="vb-auth-brand vb-cinematic">
+                <div class="vb-brand-copy">
+                    <div class="vb-chip mb-4"><span class="vb-live-dot"></span> PRIVATE BY DESIGN · BUILT FOR REAL WORKLOADS</div>
+                    <h2 class="vb-hero-title">Your data.<br><span>Always recoverable.</span></h2>
+                    <p class="mt-3 vb-hero-copy">A calmer way to protect the databases your business depends on. Encrypted backups, your storage, and a clear path back when it matters.</p>
+                    <div class="vb-demo" aria-label="Animated product demonstration of a database backup being encrypted and sent to customer-owned storage">
+                        <div class="vb-demo-top"><span><i></i> LIVE BACKUP WALKTHROUGH</span><span class="vb-demo-time">00:00</span></div>
+                        <div class="vb-demo-flow">
+                            <div class="vb-demo-node vb-source"><span class="vb-node-icon">▤</span><b>PRODUCTION DB</b><small>PostgreSQL · 2.4 GB</small><em>Connected</em></div>
+                            <div class="vb-demo-link"><span class="vb-packet"></span><span class="vb-link-line"></span></div>
+                            <div class="vb-demo-node vb-secure"><span class="vb-node-icon">⌑</span><b>ENCRYPTION</b><small>AES-256-GCM</small><em>Protected</em></div>
+                            <div class="vb-demo-link"><span class="vb-packet"></span><span class="vb-link-line"></span></div>
+                            <div class="vb-demo-node vb-storage"><span class="vb-node-icon">▱</span><b>YOUR STORAGE</b><small>S3-compatible</small><em>Verified</em></div>
+                        </div>
+                        <div class="vb-demo-progress"><div class="vb-demo-progress-fill"></div></div>
+                        <div class="vb-demo-foot"><span class="vb-demo-status"><i></i> <b>Backup verified</b></span><span>SHA-256 · 100%</span></div>
+                    </div>
+                    <div class="vb-proof-row"><span>01 / CONNECT</span><span>02 / ENCRYPT</span><span>03 / VERIFY</span></div>
                 </div>
-                <div class="pt-6">
-                    <a href="/install" class="vb-link-muted">Download desktop agent →</a>
+                <div class="vb-brand-bottom">
+                    <a href="/install" class="vb-link-muted">Explore desktop agent downloads <span aria-hidden="true">↗</span></a>
+                    <span>Windows · macOS · Linux</span>
                 </div>
             </div>
             <div class="vb-auth-form space-y-4">
@@ -974,6 +989,32 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
     </div>
 
     <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !window.gsap) return;
+        var g = window.gsap;
+        var tl = g.timeline({repeat:-1, repeatDelay:.55});
+        tl.to('.vb-demo-time',{textContent:'00:01',duration:.3})
+          .to('.vb-source',{boxShadow:'0 0 26px rgba(52,211,153,.2)',borderColor:'rgba(52,211,153,.65)',duration:.35},0)
+          .to('.vb-packet',{x:21,duration:.8,ease:'power1.inOut',stagger:.08},.15)
+          .to('.vb-demo-progress-fill',{width:'42%',duration:.9,ease:'power1.out'},.15)
+          .to('.vb-demo-time',{textContent:'00:02',duration:.3},1)
+          .to('.vb-secure',{boxShadow:'0 0 28px rgba(45,212,191,.24)',borderColor:'rgba(45,212,191,.7)',duration:.35},1.1)
+          .to('.vb-packet',{x:21,duration:.8,ease:'power1.inOut',stagger:.08},1.2)
+          .to('.vb-demo-progress-fill',{width:'78%',duration:.8,ease:'power1.out'},1.2)
+          .to('.vb-demo-time',{textContent:'00:03',duration:.3},2.1)
+          .to('.vb-storage',{boxShadow:'0 0 28px rgba(52,211,153,.22)',borderColor:'rgba(52,211,153,.7)',duration:.35},2.2)
+          .to('.vb-demo-progress-fill',{width:'100%',duration:.6,ease:'power1.out'},2.2)
+          .to('.vb-demo-time',{textContent:'00:04',duration:.3},2.8)
+          .to('.vb-demo-status b',{textContent:'Backup verified',duration:.2},2.8)
+          .to('.vb-demo-progress-fill',{width:'0%',duration:.2},3.7)
+          .to('.vb-demo-time',{textContent:'00:00',duration:.2},3.7)
+          .set('.vb-demo-node',{boxShadow:'none',borderColor:'rgba(148,163,184,.2)'},3.9);
+        g.from('.vb-brand-copy > *',{y:22,opacity:0,duration:.75,stagger:.12,ease:'power3.out',clearProps:'all'});
+        g.from('.vb-brand-bottom',{y:12,opacity:0,duration:.6,ease:'power2.out',clearProps:'all'},.65);
+      });
+    </script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js" defer></script>
+        <script>
         var TOKEN = null;
         try { TOKEN = localStorage.getItem('vb_token'); } catch (e) {}
         var ME = '';
