@@ -395,7 +395,73 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
 .vb-cinematic:after{content:"";position:absolute;width:340px;height:340px;right:-190px;top:34%;border:1px solid rgba(45,212,191,.14);border-radius:50%;box-shadow:0 0 0 34px rgba(45,212,191,.025),0 0 0 72px rgba(45,212,191,.02);pointer-events:none}
 .vb-brand-copy{position:relative;z-index:1}.vb-hero-title{font-size:clamp(2.5rem,4.5vw,3.6rem)!important;line-height:.99!important;letter-spacing:-.065em!important;font-weight:750!important;margin-top:1.2rem!important}.vb-hero-title span{color:#6ee7b7}.vb-hero-copy{max-width:440px;font-size:.93rem!important;line-height:1.65!important;color:#a9bac8!important}
 .vb-live-dot,.vb-demo-top i,.vb-demo-status i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#34d399;box-shadow:0 0 12px #34d399}.vb-demo{position:relative;margin-top:1.8rem;padding:1rem;border:1px solid rgba(148,163,184,.2);border-radius:18px;background:linear-gradient(145deg,rgba(13,28,41,.92),rgba(5,15,27,.88));box-shadow:0 24px 65px rgba(0,0,0,.38),inset 0 1px rgba(255,255,255,.05);backdrop-filter:blur(16px);overflow:hidden}.vb-demo-top,.vb-demo-foot{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.58rem;letter-spacing:.12em;color:#8da2b4;font-weight:700}.vb-demo-top span:first-child{display:flex;align-items:center;gap:.5rem}.vb-demo-time{font-variant-numeric:tabular-nums;color:#5eead4}.vb-demo-flow{display:grid;grid-template-columns:1fr 28px 1fr 28px 1fr;align-items:center;gap:.2rem;margin:1.3rem 0 1rem}.vb-demo-node{min-width:0;min-height:104px;padding:.65rem .35rem;border-radius:12px;border:1px solid rgba(148,163,184,.2);background:rgba(15,31,46,.85);display:flex;align-items:center;flex-direction:column;justify-content:center;text-align:center;gap:.25rem}.vb-node-icon{font-size:1.35rem;color:#a7f3d0}.vb-demo-node b{font-size:.53rem;letter-spacing:.07em;color:#e2e8f0}.vb-demo-node small{font-size:.55rem;color:#91a4b7;white-space:nowrap}.vb-demo-node em{font-size:.53rem;font-style:normal;color:#6ee7b7}.vb-secure{border-color:rgba(45,212,191,.35);background:linear-gradient(145deg,rgba(13,78,75,.32),rgba(15,31,46,.8))}.vb-demo-link{position:relative;height:2px;background:rgba(148,163,184,.22)}.vb-link-line{position:absolute;inset:0;background:linear-gradient(90deg,transparent,#5eead4,transparent);transform:scaleX(.4);transform-origin:left}.vb-packet{position:absolute;z-index:2;top:-3px;left:0;width:7px;height:7px;border-radius:50%;background:#a7f3d0;box-shadow:0 0 14px #5eead4}.vb-demo-progress{height:3px;background:rgba(148,163,184,.14);border-radius:9px;overflow:hidden}.vb-demo-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#0d9488,#6ee7b7);box-shadow:0 0 12px rgba(45,212,191,.7)}.vb-demo-foot{margin-top:.7rem;letter-spacing:.03em;font-size:.58rem}.vb-demo-status{display:flex;align-items:center;gap:.4rem;color:#a7f3d0}.vb-proof-row{display:flex;justify-content:space-between;gap:.4rem;margin-top:1rem;color:#71879a;font-size:.55rem;letter-spacing:.12em;font-weight:700}.vb-brand-bottom{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding-top:1.2rem}.vb-brand-bottom>span{font-size:.63rem;color:#71879a}.vb-brand-bottom .vb-link-muted{color:#a7f3d0;font-size:.75rem}
-@media(max-width:767px){.vb-cinematic{display:none!important}}@media(prefers-reduced-motion:reduce){.vb-demo *{animation:none!important;transition:none!important}}
+/* Responsive layout foundation */
+html{width:100%;min-width:320px;scrollbar-gutter:stable}
+body{width:100%;min-width:320px;overflow-x:hidden}
+*,*::before,*::after{box-sizing:border-box}
+img,svg,video,canvas{max-width:100%;height:auto}
+input,select,textarea,button{max-width:100%;font:inherit}
+#app-view{min-width:0;overflow-x:clip}
+#app-view>header>div{min-width:0;gap:1rem}
+#app-view main{min-width:0}
+#app-view main>*{min-width:0}
+#app-view table{width:100%;border-collapse:collapse}
+#app-view .overflow-x-auto{max-width:100%;overscroll-behavior-x:contain}
+#auth-view{overflow-y:auto;overscroll-behavior-y:contain;min-height:100vh;min-height:100dvh;padding:clamp(.75rem,3vw,2rem)}
+.vb-auth-shell{width:min(100%,1120px);min-width:0;margin:auto}
+.vb-auth-brand,.vb-auth-form{min-width:0}
+.vb-cinematic{min-height:0}
+.vb-demo,.vb-demo-flow,.vb-demo-node{min-width:0}
+.vb-demo-node small{max-width:100%;overflow-wrap:anywhere;white-space:normal}
+@media(max-width:1023px){
+  #app-view main{padding-top:1.5rem;padding-bottom:1.5rem}
+}
+@media(max-width:767px){
+  #auth-view{align-items:flex-start;padding:.75rem}
+  .vb-auth-shell{display:grid;grid-template-columns:minmax(0,1fr);max-width:480px;border-radius:1rem}
+  .vb-auth-brand,.vb-cinematic{display:flex!important;flex-direction:column;justify-content:space-between}
+  .vb-auth-brand{padding:1.15rem;border-right:0;border-bottom:1px solid var(--vb-border)}
+  .vb-cinematic{min-height:0!important;padding:1.15rem!important}
+  .vb-hero-title{font-size:clamp(2rem,8vw,2.8rem)!important;line-height:1.02!important;margin-top:.85rem!important}
+  .vb-hero-copy{font-size:.82rem!important;line-height:1.5!important}
+  .vb-demo{margin-top:1rem;padding:.75rem}
+  .vb-demo-flow{grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr) 14px minmax(0,1fr);gap:.12rem;margin:.85rem 0}
+  .vb-demo-node{min-height:82px;padding:.45rem .15rem}
+  .vb-demo-node b{font-size:clamp(.42rem,1.7vw,.53rem);letter-spacing:.02em;overflow-wrap:anywhere}
+  .vb-demo-node small,.vb-demo-node em{font-size:.48rem}
+  .vb-demo-link{min-width:0}
+  .vb-proof-row{font-size:.48rem;letter-spacing:.06em}
+  .vb-brand-bottom{padding-top:.85rem;flex-wrap:wrap}
+  .vb-brand-bottom>span{font-size:.58rem}
+  .vb-auth-form{padding:1.25rem!important}
+  #app-view>header{position:relative}
+  #app-view>header>div{height:auto;min-height:4rem;flex-wrap:wrap;padding-top:.7rem;padding-bottom:.7rem}
+  #app-view>header>div>div:first-child{flex:1 1 100%;min-width:0}
+  #app-view>header>div>div:last-child{width:100%;display:flex;flex-wrap:wrap;gap:.5rem}
+  #app-view>header>div>div:last-child button{flex:1 1 auto;justify-content:center;min-height:2.25rem}
+  #app-view main{padding-left:.85rem;padding-right:.85rem;gap:1.25rem}
+  #app-view .grid{min-width:0}
+  #app-view .rounded-xl,#app-view .rounded-2xl{min-width:0}
+  #app-view table{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+  #app-view [role=dialog],#app-view .fixed.inset-0>div{max-width:calc(100vw - 1.5rem)}
+}
+@media(max-width:380px){
+  .vb-demo-top,.vb-demo-foot{font-size:.5rem;letter-spacing:.04em}
+  .vb-demo-flow{grid-template-columns:minmax(0,1fr) 8px minmax(0,1fr) 8px minmax(0,1fr)}
+  .vb-demo-node{min-height:76px}
+  .vb-node-icon{font-size:1.05rem}
+  .vb-proof-row{gap:.2rem;font-size:.43rem}
+  #auth-actions-login{flex-direction:column}
+  #auth-actions-login button{width:100%;min-height:2.5rem}
+}
+@media(min-width:768px) and (max-width:1023px){
+  .vb-auth-shell{grid-template-columns:minmax(0,1fr) minmax(300px,.9fr)}
+  .vb-auth-brand{padding:1.5rem}
+  .vb-cinematic{padding:1.5rem!important}
+  .vb-hero-title{font-size:clamp(2.2rem,4vw,3rem)!important}
+  .vb-demo-flow{grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr) 16px minmax(0,1fr)}
+}
+@media(prefers-reduced-motion:reduce){.vb-demo *{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white">
