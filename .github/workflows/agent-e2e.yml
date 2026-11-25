@@ -72,13 +72,16 @@ jobs:
           TOKEN="${SECRET_TOKEN:-}"
           if [ -z "$TOKEN" ]; then TOKEN="${INPUT_TOKEN:-}"; fi
           if [ -z "$TOKEN" ]; then
-            echo "::error::No license token. Set repo secret AGENT_LICENSE_TOKEN or pass workflow_dispatch input license_token."
-            exit 1
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No AGENT_LICENSE_TOKEN (and no workflow_dispatch license_token). Build-only smoke; full licensed backup path skipped."
+            exit 0
           fi
+          echo "has_token=true" >> "$GITHUB_OUTPUT"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
           echo "token_len=${#TOKEN}"
 
       - name: Prepare work dirs + sample SQLite DB
+        if: steps.tok.outputs.has_token == 'true'
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/vb-data" "$RUNNER_TEMP/vb-backups" "$RUNNER_TEMP/vb-restore"
@@ -99,6 +102,7 @@ jobs:
           PY
 
       - name: Write agent config
+        if: steps.tok.outputs.has_token == 'true'
         env:
           TOKEN: ${{ steps.tok.outputs.token }}
           AGENT_NAME: e2e-${{ runner.os }}-${{ github.run_id }}
@@ -148,6 +152,7 @@ jobs:
 
       - name: License check (control plane only)
         id: lic
+        if: steps.tok.outputs.has_token == 'true'
         run: |
           set -euo pipefail
           CFG="$RUNNER_TEMP/config.json"
@@ -192,7 +197,7 @@ jobs:
           PY
 
       - name: Run full backup (sqlite → local + encrypt)
-        if: steps.lic.outputs.ok == 'true'
+        if: steps.tok.outputs.has_token == 'true' && steps.lic.outputs.ok == 'true'
         run: |
           set -euo pipefail
           CFG="$RUNNER_TEMP/config.json"
@@ -208,7 +213,7 @@ jobs:
           echo "KEY_OK"
 
       - name: Retention (keep=1)
-        if: steps.lic.outputs.ok == 'true'
+        if: steps.tok.outputs.has_token == 'true' && steps.lic.outputs.ok == 'true'
         run: |
           set -euo pipefail
           CFG="$RUNNER_TEMP/config.json"
@@ -228,7 +233,7 @@ jobs:
           test "$count" -le 3
 
       - name: Restore (decrypt)
-        if: steps.lic.outputs.ok == 'true'
+        if: steps.tok.outputs.has_token == 'true' && steps.lic.outputs.ok == 'true'
         run: |
           set -euo pipefail
           CFG="$RUNNER_TEMP/config.json"
@@ -242,11 +247,11 @@ jobs:
           test -s "$OUT"
           echo "RESTORE_OK on ${{ runner.os }}"
 
-      - name: Smoke when license device-bound
-        if: steps.lic.outputs.ok != 'true'
+      - name: Smoke when license path skipped
+        if: steps.tok.outputs.has_token != 'true' || steps.lic.outputs.ok != 'true'
         run: |
           set -euo pipefail
-          echo "Smoke OK on ${{ runner.os }} (licensed path skipped: token bound to another device)"
+          echo "Smoke OK on ${{ runner.os }} (licensed path skipped)"
           test -x "$BIN" || test -f "$BIN"
 
       - name: Agent log tail
