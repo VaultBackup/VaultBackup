@@ -15,7 +15,7 @@
 msiexec /i vaultbackup-agent-windows-amd64.msi
 
 # Windows EXE
-.\vaultbackup-agent-windows-amd64.exe -webui 127.0.0.1:8787
+.\\vaultbackup-agent-windows-amd64.exe -webui 127.0.0.1:8787
 
 # Linux
 chmod +x ./vaultbackup-agent-linux-amd64
@@ -42,9 +42,9 @@ License server URL is built in (`https://backup.enadoctemp.workers.dev`).
 | `-webui-tls-key` | *(empty)* | PEM private key path for HTTPS Web UI. Env: `WEBUI_TLS_KEY` or `VAULTBACKUP_WEBUI_TLS_KEY` |
 | `-no-webui` | `false` | Disable the Web UI (scheduler + license loops still run) |
 | `-once` | `false` | Run **one** backup then exit (still requires EULA accepted + valid license) |
-| `-type` | *(empty)* | Override backup type for this run only (`full` or `schema`) |
-| `-restore` | *(empty)* | Local path **or** destination object key of an encrypted backup to decrypt |
-| `-restore-out` | *(empty)* | Output path for decrypted data (default: `<source>.decrypted`) |
+| `-type` | *(empty)* | Override backup type for this run only (`full` or `schema`). `incremental` / `differential` / `log` are **not** implemented yet (clear error). |
+| `-restore` | *(empty)* | Local path **or** destination object key of a backup to restore (downloads if remote; decrypts `.vbenc`) |
+| `-restore-out` | *(empty)* | Output path for restored data (default under work dir: `restored-<name>`) |
 | `-self-update` | `false` | Download and install the latest agent binary from the license server, then exit |
 
 Go’s `flag` package accepts a single leading dash (`-webui`). Double-dash forms may work on some wrappers; prefer single-dash as shown.
@@ -70,25 +70,39 @@ Go’s `flag` package accepts a single leading dash (`-webui`). Double-dash form
 
 ```bash
 # Local encrypted file
-./vaultbackup-agent -config /etc/vaultbackup/config.yaml \
-  -restore /var/lib/vaultbackup/backups/job.sql.gz.vbenc \
+./vaultbackup-agent -config /etc/vaultbackup/config.yaml \\
+  -restore /var/lib/vaultbackup/backups/job.sql.gz.vbenc \\
   -restore-out /tmp/restored.sql.gz
 
 # Object key on the configured destination (downloaded, then decrypted)
-./vaultbackup-agent -config /etc/vaultbackup/config.yaml \
-  -restore backups/2026-11-19/job.sql.gz.vbenc \
+./vaultbackup-agent -config /etc/vaultbackup/config.yaml \\
+  -restore backups/2026-11-19/job.sql.gz.vbenc \\
   -restore-out /tmp/restored.sql.gz
 
 # Or use the Web UI: Review → Stored backups → Restore
 ```
 
+## Backup catalog
+
+Each successful backup also writes:
+
+| Artifact | Where | Purpose |
+|----------|--------|---------|
+| Payload | your destination | Dump (optionally `.vbenc` encrypted) |
+| Manifest | `<payload>.manifest.json` next to the object | Engine, kind, size, chain id, restore notes |
+| Chain | agent work dir `chain.json` | Last full key / sequence (foundation for future incremental & PITR) |
+
+Restore still means: **get object → decrypt if needed → apply with engine tools**. Point-in-time recovery from native WAL/binlog is not implemented.
+
+See [CAPABILITIES.md](CAPABILITIES.md) for the full matrix.
+
 ### Example: HTTPS Web UI
 
 ```bash
-./vaultbackup-agent \
-  -webui 0.0.0.0:8787 \
-  -webui-password "$WEBUI_PASSWORD" \
-  -webui-tls-cert /etc/vaultbackup/tls/cert.pem \
+./vaultbackup-agent \\
+  -webui 0.0.0.0:8787 \\
+  -webui-password "$WEBUI_PASSWORD" \\
+  -webui-tls-cert /etc/vaultbackup/tls/cert.pem \\
   -webui-tls-key /etc/vaultbackup/tls/key.pem
 ```
 
@@ -112,7 +126,7 @@ sudo ./scripts/install-linux.sh ./vaultbackup-agent-linux-amd64
 sudo ./scripts/install-macos.sh ./vaultbackup-agent-darwin-arm64
 
 # Windows (Admin PowerShell)
-.\scripts\install-windows.ps1 -BinaryPath .\vaultbackup-agent-windows-amd64.exe
+.\\scripts\\install-windows.ps1 -BinaryPath .\\vaultbackup-agent-windows-amd64.exe
 
 # Windows MSI
 msiexec /i vaultbackup-agent-windows-amd64.msi
